@@ -116,12 +116,15 @@ if topStruct and trend == 1 and strategy.position_size > 0
  
 // 4. 下降趋势中出现底部结构 → 加仓40%（从0%加到40%）
 if bottomStruct and trend == -1
-    strategy.entry("Long", strategy.long, qty=40, comment="底部结构 加40%")
+    if strategy.position_size == 0
+        qty = strategy.equity / close * 0.4
+        strategy.entry("Long_bottom_struct", strategy.long, qty=qty, comment="底部结构 加40%")
  
 // 5. 上升趋势中顶部纠错 → 目标再平衡到 100%
 if topCorrection and trend == 1 and strategy.position_size > 0
     qty = (strategy.equity - strategy.position_size*close)/close
-    strategy.entry("Long_rebal", strategy.long, qty=qty, comment="顶纠错 再平衡至100%")
+    if qty > 0
+        strategy.entry("Long_rebal", strategy.long, qty=qty, comment="顶纠错 再平衡至100%")
  
 // 6. 下降趋势中底部纠错 → 清仓
 if bottomCorrection and trend == -1

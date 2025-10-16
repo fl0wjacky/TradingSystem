@@ -630,18 +630,23 @@ pip3 install -r requirements.txt
 
 ### 快速开始
 
-**重要**: 项目采用标准 Python 结构（src/ 目录），有两种运行方式：
+**⚠️ 重要**: 项目采用标准 Python 结构（src/ 目录），**不要直接运行** `python3 src/xxx.py`，有两种正确运行方式：
 
 **方式A（推荐）**: 使用便捷脚本
 ```bash
-./mag_import.sh manual
-./mag_system.sh
-./mag_reanalyze.sh 2025-10-10 2025-10-15
+./mag_import.sh manual          # 数据导入
+./mag_system.sh                 # 系统分析
+./mag_reanalyze.sh 2025-10-15   # 重新分析指定日期
 ```
 
-**方式B**: 直接运行（需要设置 PYTHONPATH）
+**方式B**: 手动设置 PYTHONPATH
 ```bash
 PYTHONPATH=/path/to/mag python3 src/mag_import.py manual
+```
+
+**❌ 错误示例**（会报 ModuleNotFoundError）:
+```bash
+python3 src/mag_reanalyze.py 2025-10-15  # ❌ 错误！
 ```
 
 ---

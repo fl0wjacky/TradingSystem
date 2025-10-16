@@ -1,0 +1,24 @@
+[
+  {
+    "date": "2025-10-14",
+    "coin": "BTC",
+    "phase_type": "退场期",
+    "phase_days": 4,
+    "offchain_index": 682,
+    "break_index": 31,
+    "shelin_point": 110000.0,
+    "is_dragon_leader": 0,
+    "is_us_stock": 0
+  },
+  {
+    "date": "2025-10-14",
+    "coin": "ETH",
+    "phase_type": "退场期",
+    "phase_days": 4,
+    "offchain_index": 613,
+    "break_index": 25,
+    "shelin_point": 3900.0,
+    "is_dragon_leader": 1,
+    "is_us_stock": 0
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:youtu.be)",
+      "WebFetch(domain:www.youtube.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

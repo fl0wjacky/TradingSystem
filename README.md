@@ -164,7 +164,7 @@ MIT License
 
 ## 👨‍💻 作者
 
-- **cbdcat 系统**: 老猫交易体系
-- **Mag 系统**: Flow + Claude Code
+- **cbdcat 系统**: X @cbdcat
+- **Mag 系统**: X @magicube121
 
 **最后更新**: 2025-10-16

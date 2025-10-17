@@ -17,31 +17,6 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
-def fetch_notion_data_via_firecrawl(url: str, progress, task_id) -> str:
-    """使用Firecrawl MCP工具抓取Notion数据"""
-    try:
-        # 导入必要的模块（假设MCP工具可用）
-        progress.update(task_id, advance=30, description="[cyan]正在通过Firecrawl抓取...")
-
-        # 这里应该调用MCP的firecrawl工具
-        # 由于在Python中无法直接调用MCP工具，我们使用subprocess调用
-        import subprocess
-        import json
-
-        # 注意：这个方法在实际环境中可能需要调整
-        # 如果有MCP Python客户端，应该使用客户端而不是subprocess
-
-        console.print("[dim]提示：Firecrawl需要通过Claude Code环境调用[/dim]")
-        console.print("[dim]当前自动回退到测试模式[/dim]")
-
-        progress.update(task_id, advance=20)
-        return None  # 返回None表示需要使用测试数据
-
-    except Exception as e:
-        console.print(f"[red]Firecrawl抓取失败: {str(e)}[/red]")
-        return None
-
-
 def parse_arguments():
     """解析命令行参数"""
     import argparse
@@ -107,220 +82,40 @@ def main():
     analyzer = MagAnalyzer(db)
 
     try:
+        # 1. 抓取并解析 Notion 数据
+        console.print()
+        scraper = NotionScraper(notion_url)
+
+        # 使用降级策略获取数据
+        raw_data = scraper.fetch_data()
+
+        # 解析数据
+        console.print("\n[cyan]正在解析数据...[/cyan]")
+        coin_data_list = scraper.parse_data(raw_data)
+
+        console.print(f"[green]✓[/green] 成功抓取 {len(coin_data_list)} 个币种数据\n")
+
+        # 2. 存储数据
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             console=console
         ) as progress:
-
-            # 1. 使用Firecrawl抓取数据
-            task1 = progress.add_task("[cyan]正在抓取Notion数据...", total=100)
-
-            console.print("[dim]使用Firecrawl MCP工具抓取Notion页面...[/dim]")
-            raw_data = fetch_notion_data_via_firecrawl(notion_url, progress, task1)
-
-            if not raw_data:
-                # 回退到测试数据
-                console.print("[yellow]警告：Firecrawl抓取失败，使用测试数据[/yellow]")
-                test_data = """10.14
-
-Btc  场外指数682场外退场期第4天
-
-爆破指数31
-
-谢林点 110000
-
-Eth  场外指数613场外退场期第4天
-
-爆破指数25
-
-谢林点 3900
-
-BNB 场外指数1004场外进场期第14天  逼近
-
-爆破指数131
-
-谢林点 1140
-
-SOL 场外指数510场外退场期第5天
-
-爆破指数20
-
-谢林点190
-
-Doge场外指数486场外退场期第4天
-
-爆破指数-21
-
-谢林点 0.195
-
-美股纳指 OTC 场外指数847场外退场期第4天
-
-爆破指数35
-
-&币市流动性 场外指数1267场外进场期4天
-
-爆破指数136
-
-期权波动率（比特币Vega交易）
-
-场外指数3043场外进场期22天
-
-爆破指数218
-
-谢林点 45
-
-※※※※※※※※※※※※※※※※※
-
-LTC 场外指数575场外退场期第4天
-
-爆破指数-17
-
-Ldo场外指数551场外退场期第22天
-
-爆破指数-10
-
-Crv场外指数565场外退场期第4天
-
-爆破指数-7
-
-LINK 场外指数463场外退场期第22天
-
-爆破指数-13
-
-ADA场外指数456场外退场期第22天
-
-爆破指数-24
-
-UNI 场外指数481场外退场期第30天
-
-爆破指数-10
-
-Ondo 场外指数436场外退场第23天
-
-爆破指数-33
-
-Aave场外指数448场外退场期4天
-
-爆破指数-13
-
-Avax场外指数441场外退场期第20天
-
-爆破指数-25
-
-Pepe场外指数432场外退场期第23天
-
-爆破指数-27
-
-※※※※※※※※※※※※※※※※
-
-Sui场外指数410场外退场第23天
-
-爆破指数-24
-
-Sei场外指数430场外退场期第30天
-
-爆破指数-40
-
-WLD 场外指数471场外退场期第29天
-
-爆破指数-40
-
-hype 场外指数519场外退场期第10天
-
-爆破指数-34
-
-♤♤♤♤♤♤♤♤♤♤♤♤
-
-$Trump
-
-场外指数357爆破指数-14
-
-场外退场第6天
-
-谢林点6.2
-
-okb
-
-场外指数599
-
-爆破指数 7退场第1天
-
-谢林点176
-
-pump
-
-场外指数561 爆破-31
-
-退场期第9天
-
-谢林点0.0037
-
-$$$$$$$###
-
-hood 场外指数1089爆破114
-
-场外进场期第35天
-
-coin 场外指数967爆破指数101
-
-进场期14天 逼近
-
-circle 场外指数1058爆破指数86
-
-场外退场第4天
-
-tsla  场外指数841爆破指数39
-
-场外退场期第4天
-
-Nvda 场外指数1097爆破指数155
-
-场外进场期第22天  逼近
-
-Aapl 场外指数974爆破指数-114
-
-场外退场期第4天
-
-goog 场外指数1046爆破指数41
-
-场外退场期第5天
-
-黄金OTC   场外指数1676场外进场期第50天
-
-爆破指数228
-
-地产 （指导国内购置地产房产 大周期只月更）
-
-场外指数1764 爆破238
-
-进场期第3月
-
-布伦特原油 场外指数826爆破指数-50
-
-场外退场期第13天"""
-
-            raw_data = test_data
-            progress.update(task1, advance=50)
-
-            # 2. 解析数据
-            progress.update(task1, description="[cyan]正在解析数据...")
-            scraper = NotionScraper(notion_url)
-            coin_data_list = scraper.parse_data(raw_data)
-            progress.update(task1, advance=50, completed=100)
-
-            console.print(f"\n[green]✓[/green] 成功抓取 {len(coin_data_list)} 个币种数据\n")
-
-            # 3. 存储数据
             task2 = progress.add_task("[cyan]正在存储数据到数据库...", total=len(coin_data_list))
             for coin_data in coin_data_list:
                 db.insert_or_update_coin_data(coin_data)
                 progress.update(task2, advance=1)
 
-            console.print(f"[green]✓[/green] 数据存储完成\n")
+        console.print(f"[green]✓[/green] 数据存储完成\n")
 
-            # 4. 分析关键节点
+        # 3. 分析关键节点
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            console=console
+        ) as progress:
             task3 = progress.add_task("[cyan]正在分析关键节点...", total=len(coin_data_list))
             analysis_results = []
 

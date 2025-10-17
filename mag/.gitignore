@@ -51,3 +51,6 @@ flow的笔记.html
 
 # Claude settings (may contain sensitive info)
 .claude/settings.local.json
+
+# Environment variables (contains API keys and secrets)
+.env

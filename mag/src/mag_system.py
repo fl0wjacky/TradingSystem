@@ -42,18 +42,59 @@ def fetch_notion_data_via_firecrawl(url: str, progress, task_id) -> str:
         return None
 
 
+def parse_arguments():
+    """解析命令行参数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description='Mag 现货提示系统 - 基于场外体系的智能交易分析',
+        add_help=False  # 禁用默认的 -h，因为我们在 shell 脚本中处理了
+    )
+
+    parser.add_argument('notion_url', nargs='?', default=None,
+                       help='Notion 数据链接')
+    parser.add_argument('--firecrawl-key', dest='firecrawl_key',
+                       help='临时覆盖 Firecrawl API key')
+    parser.add_argument('--notion-token', dest='notion_token',
+                       help='临时覆盖 Notion API token')
+    parser.add_argument('--show-config', action='store_true',
+                       help='显示配置状态')
+
+    return parser.parse_args()
+
+
 def main():
     """主程序入口"""
+    from src.config import config
+
+    # 解析命令行参数
+    args = parse_arguments()
+
     console.print(Panel.fit(
         "[bold cyan]Mag 现货提示系统 v1.0[/bold cyan]\n"
         "[dim]基于场外体系的智能交易分析[/dim]",
         border_style="cyan"
     ))
 
+    # 加载配置文件
+    config.load_from_env()
+
+    # 从命令行参数覆盖配置
+    if args.firecrawl_key or args.notion_token:
+        config.override_from_args(
+            firecrawl_key=args.firecrawl_key,
+            notion_token=args.notion_token
+        )
+
+    # 如果只是显示配置，则显示后退出
+    if args.show_config:
+        config.show_status()
+        sys.exit(0)
+
     # 获取Notion URL
-    if len(sys.argv) > 1:
-        notion_url = sys.argv[1]
-    else:
+    notion_url = args.notion_url
+
+    if not notion_url:
         console.print("\n[yellow]请输入Notion数据链接：[/yellow]", end="")
         notion_url = input().strip()
 

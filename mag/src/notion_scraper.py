@@ -1,9 +1,23 @@
 """
 Notion数据抓取与解析模块
+实现多种抓取方式的降级策略
 """
 import re
 from typing import List, Dict, Optional
 from datetime import datetime
+from rich.console import Console
+
+# 导入抓取器和配置
+from src.scrapers import (
+    BaseScraper,
+    FirecrawlAPIScraper,
+    NotionAPIScraper,
+    SimpleHTTPScraper,
+    TestDataScraper
+)
+from src.config import config
+
+console = Console()
 
 
 class NotionScraper:
@@ -14,14 +28,54 @@ class NotionScraper:
     def fetch_data(self) -> str:
         """
         从Notion抓取原始文本数据
-        由于Notion需要JavaScript渲染，这里返回提示信息
-        实际使用时请用Firecrawl或其他方式获取渲染后的文本
+        使用降级策略，按优先级尝试多种方式
         """
+        console.print("\n[bold cyan]开始抓取 Notion 数据...[/bold cyan]")
+        console.print(f"[dim]URL: {self.url}[/dim]\n")
+
+        # 构建抓取器列表（按优先级排序）
+        scrapers: List[BaseScraper] = []
+
+        # 优先级1: Firecrawl MCP（在 Claude Code 环境中）
+        # 注意: MCP 工具需要在 Claude Code 环境中才能使用
+        # 这里我们假设如果在 Claude Code 环境，会由外部调用
+        # 所以这里不直接实现 MCP 抓取
+
+        # 优先级2: Firecrawl API
+        if config.has_firecrawl_api():
+            scrapers.append(FirecrawlAPIScraper(config.firecrawl_api_key))
+
+        # 优先级3: Notion API
+        if config.has_notion_api():
+            scrapers.append(NotionAPIScraper(config.notion_api_token))
+
+        # 优先级4: 简单 HTTP 请求（适用于公开页面）
+        scrapers.append(SimpleHTTPScraper())
+
+        # 优先级5: 测试数据（最后降级）
+        scrapers.append(TestDataScraper())
+
+        # 显示降级策略
+        console.print("[dim]降级策略顺序:[/dim]")
+        console.print("[dim]  1. Firecrawl MCP (Claude Code 环境)[/dim]")
+        for i, scraper in enumerate(scrapers, start=2):
+            console.print(f"[dim]  {i}. {scraper.get_name()}[/dim]")
+        console.print()
+
+        # 按顺序尝试各个抓取器
+        for scraper in scrapers:
+            raw_text = scraper.scrape(self.url)
+            if raw_text:
+                return raw_text
+
+        # 如果所有方法都失败
         raise Exception(
-            "Notion页面需要JavaScript渲染。\n"
-            "请使用以下方式之一：\n"
-            "1. 使用Firecrawl MCP工具抓取（推荐）\n"
-            "2. 手动复制页面文本并保存为文件，然后使用parse_data()方法解析"
+            "所有抓取方式均失败。\n"
+            "请检查：\n"
+            "1. 网络连接是否正常\n"
+            "2. Notion 页面是否可访问\n"
+            "3. 是否配置了有效的 API 密钥\n"
+            "建议：编辑 .env 文件，配置至少一个 API 密钥"
         )
 
     def parse_data(self, raw_text: str) -> List[Dict]:

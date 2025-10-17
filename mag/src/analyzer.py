@@ -28,13 +28,8 @@ class MagAnalyzer:
         if not reference:
             return None  # 无法找到参考节点
 
-        # 查询参考节点的类型（用于显示）
-        ref_node_type = ''
-        ref_coin_data = self.db.get_coin_data(coin, reference['date'])
-        if ref_coin_data:
-            ref_node_info = self._detect_key_node(coin, ref_coin_data)
-            if ref_node_info:
-                ref_node_type = ref_node_info['node_type']
+        # 参考节点的类型（从返回值中获取，表示它是以什么身份被选中的）
+        ref_node_type = reference.get('node_type', '')
 
         # 计算当前场外指数（如果是爆破跨越节点，使用插值）
         current_offchain_index = coin_data['offchain_index']
@@ -155,6 +150,7 @@ class MagAnalyzer:
         根据节点类型找到对应的参考节点
 
         重构版本：使用新的 find_crossing_node 方法，支持乱序和缺失日期
+        返回: {'date': 日期, 'offchain_index': 场外指数, 'node_type': 节点类型}
         """
         # 进场期第一天：对比最近的爆破跌破200或前一次进场期第一天
         if node_type == 'enter_phase_day1':
@@ -165,10 +161,12 @@ class MagAnalyzer:
             candidates = []
             if break_200_node:
                 candidates.append({'date': break_200_node[0],
-                                 'offchain_index': break_200_node[1]})
+                                 'offchain_index': break_200_node[1],
+                                 'node_type': 'break_200'})
             if enter_node:
                 candidates.append({'date': enter_node[0],
-                                 'offchain_index': enter_node[1]})
+                                 'offchain_index': enter_node[1],
+                                 'node_type': 'enter_phase_day1'})
 
             if candidates:
                 # 返回日期最近的
@@ -182,10 +180,12 @@ class MagAnalyzer:
             candidates = []
             if break_0_node:
                 candidates.append({'date': break_0_node[0],
-                                 'offchain_index': break_0_node[1]})
+                                 'offchain_index': break_0_node[1],
+                                 'node_type': 'break_0'})
             if exit_node:
                 candidates.append({'date': exit_node[0],
-                                 'offchain_index': exit_node[1]})
+                                 'offchain_index': exit_node[1],
+                                 'node_type': 'exit_phase_day1'})
 
             if candidates:
                 return max(candidates, key=lambda x: x['date'])
@@ -199,13 +199,15 @@ class MagAnalyzer:
             last_break_200 = self.db.find_crossing_node(coin, current_date, 200, 'down')
             if last_break_200:
                 candidates.append({'date': last_break_200[0],
-                                 'offchain_index': last_break_200[1]})
+                                 'offchain_index': last_break_200[1],
+                                 'node_type': 'break_200'})
 
             # 候选2: 本周期的进场期第1天
             enter_node = self.db.find_last_phase_node(coin, '进场期', current_date)
             if enter_node:
                 candidates.append({'date': enter_node[0],
-                                 'offchain_index': enter_node[1]})
+                                 'offchain_index': enter_node[1],
+                                 'node_type': 'enter_phase_day1'})
 
             # 返回日期最近的（即当前小节的起点）
             if candidates:
@@ -220,13 +222,15 @@ class MagAnalyzer:
             last_break_0 = self.db.find_crossing_node(coin, current_date, 0, 'up')
             if last_break_0:
                 candidates.append({'date': last_break_0[0],
-                                 'offchain_index': last_break_0[1]})
+                                 'offchain_index': last_break_0[1],
+                                 'node_type': 'break_0'})
 
             # 候选2: 本周期的退场期第1天
             exit_node = self.db.find_last_phase_node(coin, '退场期', current_date)
             if exit_node:
                 candidates.append({'date': exit_node[0],
-                                 'offchain_index': exit_node[1]})
+                                 'offchain_index': exit_node[1],
+                                 'node_type': 'exit_phase_day1'})
 
             # 返回日期最近的（即当前小节的起点）
             if candidates:

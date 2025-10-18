@@ -317,9 +317,4 @@ class MagAdvisor:
             else:
                 advice.append("  - 【观望】场外指数<1000，持有等待退场期第1天")
 
-        # 质量修正提示
-        if quality == '劣质':
-            advice.append("")
-            advice.append("⚠️  质量较差，建议及时调整仓位或退出")
-
         return advice

@@ -192,9 +192,16 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 else:
                     display_parts.append(node_type_text)
 
-                display_parts.append(
-                    f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
-                )
+                # 使用小节描述替代"质量"
+                section_desc = result.get('section_desc', '')
+                if section_desc:
+                    display_parts.append(
+                        f"预测{section_desc}: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                    )
+                else:
+                    display_parts.append(
+                        f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                    )
 
                 console.print("  " + " - ".join(display_parts))
 

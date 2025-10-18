@@ -448,12 +448,13 @@ class MagAnalyzer:
         if phase_type == '进场期':
             # 判断是第几小节
             if ref_node_type == 'enter_phase_day1':
-                # 参考节点是进场期第1天 → 第1小节
+                # 参考节点是进场期第1天 → 预测第1小节
                 section_num = 1
                 section_desc = "第1小节进场期质量"
             elif ref_node_type == 'break_200':
-                # 参考节点是爆破跌200 → 计算到当前日期为止有几次爆破跌200
-                section_num = self._count_break_200_since_enter(coin, date)
+                # 参考节点是爆破跌200 → 当前是第N次爆破跌200，预测第N+1小节
+                count = self._count_break_200_since_enter(coin, date)
+                section_num = count + 1
                 section_desc = f"第{section_num}小节波动展开质量"
             else:
                 section_num = 1
@@ -461,12 +462,13 @@ class MagAnalyzer:
 
         else:  # 退场期
             if ref_node_type == 'exit_phase_day1':
-                # 参考节点是退场期第1天 → 第1小节
+                # 参考节点是退场期第1天 → 预测第1小节
                 section_num = 1
                 section_desc = "第1小节退场期质量"
             elif ref_node_type == 'break_0':
-                # 参考节点是爆破跌0 → 计算到当前日期为止有几次爆破负转正
-                section_num = self._count_break_0_since_exit(coin, date)
+                # 参考节点是爆破负转正 → 当前是第N次爆破负转正，预测第N+1小节
+                count = self._count_break_0_since_exit(coin, date)
+                section_num = count + 1
                 section_desc = f"第{section_num}小节退场期波动展开质量"
             else:
                 section_num = 1

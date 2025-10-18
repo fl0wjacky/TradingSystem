@@ -450,29 +450,27 @@ class MagAnalyzer:
             if ref_node_type == 'enter_phase_day1':
                 # 参考节点是进场期第1天 → 第1小节
                 section_num = 1
-                section_desc = "进场期质量"
+                section_desc = "第1小节进场期质量"
             elif ref_node_type == 'break_200':
-                # 参考节点是爆破跌200 → 需要数有几次爆破跌200
-                # 简化处理：从进场期第1天开始，每个爆破跌200是一个小节
-                # 我们计算参考节点之前有多少次爆破跌200
-                section_num = self._count_break_200_since_enter(coin, reference['date'])
+                # 参考节点是爆破跌200 → 计算到当前日期为止有几次爆破跌200
+                section_num = self._count_break_200_since_enter(coin, date)
                 section_desc = f"第{section_num}小节波动展开质量"
             else:
                 section_num = 1
-                section_desc = "进场期质量"
+                section_desc = "第1小节进场期质量"
 
         else:  # 退场期
             if ref_node_type == 'exit_phase_day1':
                 # 参考节点是退场期第1天 → 第1小节
                 section_num = 1
-                section_desc = "退场期质量"
+                section_desc = "第1小节退场期质量"
             elif ref_node_type == 'break_0':
-                # 参考节点是爆破跌0 → 需要数有几次爆破跌0
-                section_num = self._count_break_0_since_exit(coin, reference['date'])
+                # 参考节点是爆破跌0 → 计算到当前日期为止有几次爆破负转正
+                section_num = self._count_break_0_since_exit(coin, date)
                 section_desc = f"第{section_num}小节退场期波动展开质量"
             else:
                 section_num = 1
-                section_desc = "退场期质量"
+                section_desc = "第1小节退场期质量"
 
         return (section_num, section_desc, section_change_pct)
 
@@ -510,7 +508,7 @@ class MagAnalyzer:
         return count + 1 if count > 0 else 1
 
     def _count_break_0_since_exit(self, coin: str, current_date: str) -> int:
-        """计算从最近的退场期第1天开始到current_date有多少次爆破跌0"""
+        """计算从最近的退场期第1天开始到current_date有多少次爆破负转正"""
         # 找到最近的退场期第1天
         exit_node = self.db.find_last_phase_node(coin, '退场期', current_date)
         if not exit_node:
@@ -534,13 +532,13 @@ class MagAnalyzer:
                 prev_break = current_break
                 continue
 
-            # 检测负转正后又跌破0
-            if prev_break is not None and prev_break >= 0 and current_break < 0:
+            # 检测负转正（从负数到0或正数）
+            if prev_break is not None and prev_break < 0 and current_break >= 0:
                 count += 1
 
             prev_break = current_break
 
-        return count + 1 if count > 0 else 1
+        return count if count > 0 else 1
 
     def _detect_special_nodes(self, coin: str, date: str, coin_data: Dict):
         """

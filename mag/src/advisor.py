@@ -72,9 +72,9 @@ class MagAdvisor:
 
         # 显示小节信息
         section_desc = analysis_result.get('section_desc', '')
-        section_pct = analysis_result.get('section_pct', 0)
         if section_desc:
-            output.append(f"{section_desc}：{quality}（{section_pct:+.1f}%）")
+            # 将描述改为"预测"形式，使用最终百分比
+            output.append(f"预测{section_desc}：{quality}（{final_pct:+.1f}%）")
         else:
             output.append(f"判定结果：【{quality}{phase_type}】")
         output.append("-" * 60)

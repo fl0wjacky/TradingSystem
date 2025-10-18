@@ -28,6 +28,7 @@ class MagDatabase:
                     shelin_point REAL,
                     is_dragon_leader INTEGER DEFAULT 0,  -- 1为龙头币，0为否
                     is_us_stock INTEGER DEFAULT 0,  -- 1为美股纳指，0为否
+                    is_approaching INTEGER DEFAULT 0,  -- 1为逼近状态，0为否
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (date, coin)
                 )
@@ -65,6 +66,22 @@ class MagDatabase:
                     quality_rating TEXT,  -- 优质/一般/劣质
                     benchmark_chain_status TEXT,  -- 对标链状态
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 特殊关键节点表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS special_nodes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    coin TEXT NOT NULL,
+                    node_type TEXT NOT NULL,  -- quality_warning_entry, quality_warning_exit, break_above_200,
+                                               -- offchain_above_1000, offchain_below_1000, approaching
+                    description TEXT,
+                    offchain_index INTEGER,
+                    break_index INTEGER,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(date, coin, node_type)
                 )
             """)
 
@@ -383,4 +400,79 @@ class MagDatabase:
                 WHERE date >= ? AND date <= ?
                 ORDER BY date ASC, coin ASC
             """, (start_date, end_date))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def insert_special_node(self, date: str, coin: str, node_type: str,
+                           description: str, offchain_index: int = None,
+                           break_index: int = None):
+        """插入特殊关键节点（重复则忽略）"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR IGNORE INTO special_nodes
+                (date, coin, node_type, description, offchain_index, break_index)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (date, coin, node_type, description, offchain_index, break_index))
+            conn.commit()
+
+    def get_special_nodes(self, coin: str = None, limit: int = 100) -> List[Dict]:
+        """获取特殊关键节点列表"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            if coin:
+                cursor.execute("""
+                    SELECT * FROM special_nodes
+                    WHERE coin = ?
+                    ORDER BY date DESC
+                    LIMIT ?
+                """, (coin, limit))
+            else:
+                cursor.execute("""
+                    SELECT * FROM special_nodes
+                    ORDER BY date DESC, coin
+                    LIMIT ?
+                """, (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_recent_data_since_phase_start(self, coin: str, current_date: str,
+                                         phase_type: str, max_count: int = 7) -> List[Dict]:
+        """
+        获取从本阶段开始（进场期/退场期第1天）到当前日期的数据
+
+        Args:
+            coin: 币种
+            current_date: 当前日期
+            phase_type: 阶段类型（进场期/退场期）
+            max_count: 最多获取多少条记录
+
+        Returns:
+            按日期正序排列的数据列表
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # 找到本阶段第1天的日期
+            cursor.execute("""
+                SELECT date FROM coin_daily_data
+                WHERE coin = ? AND date <= ? AND phase_type = ? AND phase_days = 1
+                ORDER BY date DESC
+                LIMIT 1
+            """, (coin, current_date, phase_type))
+
+            row = cursor.fetchone()
+            if not row:
+                return []
+
+            phase_start_date = row['date']
+
+            # 获取从phase_start_date到current_date的所有数据
+            cursor.execute("""
+                SELECT * FROM coin_daily_data
+                WHERE coin = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+                LIMIT ?
+            """, (coin, phase_start_date, current_date, max_count))
+
             return [dict(row) for row in cursor.fetchall()]

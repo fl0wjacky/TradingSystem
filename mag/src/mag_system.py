@@ -162,6 +162,31 @@ def main():
             ))
             console.print()
 
+    # 显示特殊关键节点列表
+    console.print("\n" + "=" * 70)
+    console.print("[bold cyan]特殊关键节点列表：[/bold cyan]")
+    console.print("=" * 70 + "\n")
+
+    special_nodes = db.get_special_nodes(limit=50)
+    if special_nodes:
+        # 按类型分组
+        node_types_cn = {
+            'approaching': '提示逼近',
+            'quality_warning_entry': '进场期质量修正',
+            'quality_warning_exit': '退场期质量修正',
+            'break_above_200': '爆破指数超200',
+            'offchain_above_1000': '场外指数超1000',
+            'offchain_below_1000': '场外指数跌破1000'
+        }
+
+        for node in special_nodes:
+            node_type_cn = node_types_cn.get(node['node_type'], node['node_type'])
+            console.print(f"[cyan]{node['date']}[/cyan] - [yellow]{node['coin']}[/yellow] - {node_type_cn}")
+            console.print(f"  {node['description']}")
+            console.print()
+    else:
+        console.print("[dim]暂无特殊关键节点[/dim]\n")
+
     # 显示数据概览
     console.print("\n[bold]数据概览：[/bold]")
     latest_data = db.get_latest_date_data()

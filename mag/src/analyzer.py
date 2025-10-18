@@ -18,6 +18,9 @@ class MagAnalyzer:
         if not coin_data:
             return None
 
+        # 检测并保存特殊关键节点
+        self._detect_special_nodes(coin, date, coin_data)
+
         # 检测是否为关键节点
         node_info = self._detect_key_node(coin, coin_data)
         if not node_info:
@@ -27,6 +30,11 @@ class MagAnalyzer:
         reference = self._find_reference_node(coin, date, node_info['node_type'])
         if not reference:
             return None  # 无法找到参考节点
+
+        # 识别当前小节
+        section_num, section_desc, section_pct = self._identify_section(
+            coin, date, coin_data['phase_type'], reference
+        )
 
         # 参考节点的类型（从返回值中获取，表示它是以什么身份被选中的）
         ref_node_type = reference.get('node_type', '')
@@ -97,7 +105,11 @@ class MagAnalyzer:
             'quality_rating': quality_rating,
             'benchmark_chain_status': str(benchmark_status),
             'coin_data': coin_data,
-            'benchmark_details': benchmark_status
+            'benchmark_details': benchmark_status,
+            # 小节信息
+            'section_num': section_num,
+            'section_desc': section_desc,
+            'section_pct': section_pct
         }
 
         # 保存分析结果到数据库
@@ -396,3 +408,243 @@ class MagAnalyzer:
                 return False
 
         return True
+
+    def _identify_section(self, coin: str, date: str, phase_type: str,
+                         reference: Dict) -> Tuple[int, str, float]:
+        """
+        识别当前是第几小节，并返回小节描述和质量百分比
+
+        进场期：
+        - 第1小节（进场期质量）：进场期第1天 → 第1次爆破跌200（或直接到退场期第1天）
+        - 第2+小节（波动展开质量）：第N次爆破跌200 → 第N+1次爆破跌200（或退场期第1天）
+
+        退场期：
+        - 第1小节（退场期质量）：退场期第1天 → 第1次爆破跌0（或直接到进场期第1天）
+        - 第2+小节（退场期波动展开质量）：第N次爆破跌0 → 第N+1次爆破跌0（或进场期第1天）
+
+        Args:
+            coin: 币种
+            date: 当前日期
+            phase_type: 阶段类型（进场期/退场期）
+            reference: 参考节点信息
+
+        Returns:
+            (小节编号, 小节描述, 小节质量百分比)
+        """
+        ref_node_type = reference.get('node_type', '')
+
+        # 获取当前币种数据
+        coin_data = self.db.get_coin_data(coin, date)
+        if not coin_data:
+            return (1, '', 0.0)
+
+        # 计算小节的场外指数变化百分比
+        section_change_pct, _ = self._calculate_change_percentage(
+            reference['offchain_index'],
+            coin_data['offchain_index'],
+            phase_type
+        )
+
+        if phase_type == '进场期':
+            # 判断是第几小节
+            if ref_node_type == 'enter_phase_day1':
+                # 参考节点是进场期第1天 → 第1小节
+                section_num = 1
+                section_desc = "进场期质量"
+            elif ref_node_type == 'break_200':
+                # 参考节点是爆破跌200 → 需要数有几次爆破跌200
+                # 简化处理：从进场期第1天开始，每个爆破跌200是一个小节
+                # 我们计算参考节点之前有多少次爆破跌200
+                section_num = self._count_break_200_since_enter(coin, reference['date'])
+                section_desc = f"第{section_num}小节波动展开质量"
+            else:
+                section_num = 1
+                section_desc = "进场期质量"
+
+        else:  # 退场期
+            if ref_node_type == 'exit_phase_day1':
+                # 参考节点是退场期第1天 → 第1小节
+                section_num = 1
+                section_desc = "退场期质量"
+            elif ref_node_type == 'break_0':
+                # 参考节点是爆破跌0 → 需要数有几次爆破跌0
+                section_num = self._count_break_0_since_exit(coin, reference['date'])
+                section_desc = f"第{section_num}小节退场期波动展开质量"
+            else:
+                section_num = 1
+                section_desc = "退场期质量"
+
+        return (section_num, section_desc, section_change_pct)
+
+    def _count_break_200_since_enter(self, coin: str, current_date: str) -> int:
+        """计算从最近的进场期第1天开始到current_date有多少次爆破跌200"""
+        # 找到最近的进场期第1天
+        enter_node = self.db.find_last_phase_node(coin, '进场期', current_date)
+        if not enter_node:
+            return 1
+
+        enter_date = enter_node[0]
+
+        # 获取从enter_date到current_date之间的所有数据
+        history = self.db.get_coin_history(coin, limit=100)
+
+        count = 0
+        prev_break = None
+        for record in reversed(history):
+            if record['date'] < enter_date:
+                continue
+            if record['date'] > current_date:
+                break
+
+            current_break = record.get('break_index')
+            if current_break is None:
+                prev_break = current_break
+                continue
+
+            # 检测跌破200
+            if prev_break is not None and prev_break >= 200 and current_break < 200:
+                count += 1
+
+            prev_break = current_break
+
+        return count + 1 if count > 0 else 1
+
+    def _count_break_0_since_exit(self, coin: str, current_date: str) -> int:
+        """计算从最近的退场期第1天开始到current_date有多少次爆破跌0"""
+        # 找到最近的退场期第1天
+        exit_node = self.db.find_last_phase_node(coin, '退场期', current_date)
+        if not exit_node:
+            return 1
+
+        exit_date = exit_node[0]
+
+        # 获取从exit_date到current_date之间的所有数据
+        history = self.db.get_coin_history(coin, limit=100)
+
+        count = 0
+        prev_break = None
+        for record in reversed(history):
+            if record['date'] < exit_date:
+                continue
+            if record['date'] > current_date:
+                break
+
+            current_break = record.get('break_index')
+            if current_break is None:
+                prev_break = current_break
+                continue
+
+            # 检测负转正后又跌破0
+            if prev_break is not None and prev_break >= 0 and current_break < 0:
+                count += 1
+
+            prev_break = current_break
+
+        return count + 1 if count > 0 else 1
+
+    def _detect_special_nodes(self, coin: str, date: str, coin_data: Dict):
+        """
+        检测并保存特殊关键节点
+
+        特殊节点类型：
+        1. quality_warning_entry: 进场期质量修正（头7次更新爆破指数未破200且均值下降）
+        2. quality_warning_exit: 退场期质量修正（头7次更新爆破指数未跌破0）
+        3. break_above_200: 爆破指数超过200
+        4. offchain_above_1000: 场外指数超过1000
+        5. offchain_below_1000: 场外指数跌破1000
+        6. approaching: 提示逼近
+        """
+        phase_type = coin_data.get('phase_type')
+        offchain_index = coin_data.get('offchain_index', 0)
+        break_index = coin_data.get('break_index', 0)
+        is_approaching = coin_data.get('is_approaching', 0)
+        is_us_stock = coin_data.get('is_us_stock', 0)
+
+        # 检查周期：币种7次，美股14次
+        check_count = 14 if is_us_stock else 7
+
+        # 1. 提示逼近
+        if is_approaching == 1:
+            self.db.insert_special_node(
+                date, coin, 'approaching',
+                f"提示逼近 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                offchain_index, break_index
+            )
+
+        # 2. 场外指数超过1000（从小于1000到大于等于1000）
+        prev_data = self.db.get_previous_day_data(coin, date)
+        if prev_data:
+            prev_offchain = prev_data.get('offchain_index', 0)
+            prev_break = prev_data.get('break_index', 0)
+
+            if prev_offchain < 1000 <= offchain_index:
+                self.db.insert_special_node(
+                    date, coin, 'offchain_above_1000',
+                    f"场外指数超1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    offchain_index, break_index
+                )
+
+            # 3. 场外指数跌破1000（从大于等于1000到小于1000）
+            if prev_offchain >= 1000 > offchain_index:
+                self.db.insert_special_node(
+                    date, coin, 'offchain_below_1000',
+                    f"场外指数跌破1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    offchain_index, break_index
+                )
+
+            # 4. 爆破指数超过200（从小于200到大于等于200）
+            if prev_break < 200 <= break_index:
+                self.db.insert_special_node(
+                    date, coin, 'break_above_200',
+                    f"爆破指数超200 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    offchain_index, break_index
+                )
+
+        # 5. 进场期质量修正检查
+        if phase_type == '进场期':
+            recent_data = self.db.get_recent_data_since_phase_start(
+                coin, date, '进场期', check_count
+            )
+
+            # 如果刚好到了第7次（或第14次）更新
+            if len(recent_data) == check_count:
+                # 检查是否有任何一次爆破指数超过200
+                has_break_200 = any(d.get('break_index', 0) >= 200 for d in recent_data)
+
+                # 计算爆破指数的移动平均趋势
+                break_indices = [d.get('break_index', 0) for d in recent_data if d.get('break_index') is not None]
+
+                if len(break_indices) >= 2:
+                    # 简单判断：前半部分平均值 vs 后半部分平均值
+                    mid = len(break_indices) // 2
+                    first_half_avg = sum(break_indices[:mid]) / mid
+                    second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+
+                    is_declining = second_half_avg < first_half_avg
+
+                    # 如果未破200且均值下降
+                    if not has_break_200 and is_declining:
+                        self.db.insert_special_node(
+                            date, coin, 'quality_warning_entry',
+                            f"进场期{check_count}次更新 - 爆破指数未破200且均值下降 - 质量下降",
+                            offchain_index, break_index
+                        )
+
+        # 6. 退场期质量修正检查
+        if phase_type == '退场期':
+            recent_data = self.db.get_recent_data_since_phase_start(
+                coin, date, '退场期', check_count
+            )
+
+            # 如果刚好到了第7次（或第14次）更新
+            if len(recent_data) == check_count:
+                # 检查是否有任何一次爆破指数跌破0
+                has_break_0 = any(d.get('break_index', 0) < 0 for d in recent_data)
+
+                # 如果未跌破0
+                if not has_break_0:
+                    self.db.insert_special_node(
+                        date, coin, 'quality_warning_exit',
+                        f"退场期{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
+                        offchain_index, break_index
+                    )

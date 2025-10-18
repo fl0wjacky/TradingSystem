@@ -100,10 +100,25 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
     console.print(f"  总记录数: {len(all_data)}")
     console.print(f"  检测到关键节点: {total_analyzed} 个\n")
 
-    if analysis_results:
-        console.print(f"[bold cyan]关键节点列表：[/bold cyan]\n")
+    # 获取该日期范围内的特殊节点
+    all_special_nodes = db.get_special_nodes(limit=1000)
+    special_nodes_in_range = [
+        node for node in all_special_nodes
+        if start_date <= node['date'] <= end_date
+    ]
 
-        # 节点类型翻译
+    # 如果指定了币种，过滤特殊节点
+    if coins:
+        special_nodes_in_range = [
+            node for node in special_nodes_in_range
+            if node['coin'] in coins
+        ]
+
+    # 合并节点列表
+    if analysis_results or special_nodes_in_range:
+        console.print(f"[bold cyan]节点列表：[/bold cyan]\n")
+
+        # 关键节点类型翻译
         node_type_map = {
             'enter_phase_day1': '进场期第1天',
             'exit_phase_day1': '退场期第1天',
@@ -111,47 +126,107 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
             'break_0': '爆破负转正'
         }
 
-        for i, result in enumerate(analysis_results, 1):
-            quality = result['quality_rating']
-            if quality == '优质':
-                color = "green"
-            elif quality == '一般':
-                color = "yellow"
+        # 特殊节点类型翻译
+        special_node_type_map = {
+            'approaching': '提示逼近',
+            'quality_warning_entry': '进场期质量修正',
+            'quality_warning_exit': '退场期质量修正',
+            'break_above_200': '爆破指数超200',
+            'offchain_above_1000': '场外指数超1000',
+            'offchain_below_1000': '场外指数跌破1000'
+        }
+
+        # 合并所有节点（关键节点 + 特殊节点）
+        all_nodes = []
+
+        # 添加关键节点
+        for result in analysis_results:
+            all_nodes.append({
+                'type': 'key',
+                'date': result['date'],
+                'coin': result['coin'],
+                'data': result
+            })
+
+        # 添加特殊节点
+        for node in special_nodes_in_range:
+            all_nodes.append({
+                'type': 'special',
+                'date': node['date'],
+                'coin': node['coin'],
+                'data': node
+            })
+
+        # 按日期和币种排序
+        all_nodes.sort(key=lambda x: (x['date'], x['coin']))
+
+        # 显示所有节点
+        for i, node in enumerate(all_nodes, 1):
+            if node['type'] == 'key':
+                # 关键节点
+                result = node['data']
+                quality = result['quality_rating']
+                if quality == '优质':
+                    color = "green"
+                elif quality == '一般':
+                    color = "yellow"
+                else:
+                    color = "red"
+
+                # 翻译当前节点类型
+                node_type_text = node_type_map.get(result['node_type'], result['node_type'])
+
+                # 翻译参考节点类型
+                ref_node_type = result.get('reference_node_type', '')
+                ref_node_type_text = node_type_map.get(ref_node_type, ref_node_type) if ref_node_type else ''
+
+                # 构建显示文本
+                display_parts = [
+                    f"[{color}]{i}. {result['date']}[/{color}]",
+                    f"[bold]{result['coin']}[/bold]"
+                ]
+
+                # 显示对比关系：参考节点 → 当前节点
+                if ref_node_type_text:
+                    display_parts.append(f"{ref_node_type_text} → {node_type_text}")
+                else:
+                    display_parts.append(node_type_text)
+
+                display_parts.append(
+                    f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                )
+
+                console.print("  " + " - ".join(display_parts))
+
+                # 如果是详细模式，显示完整分析
+                if verbose:
+                    console.print(f"\n[dim]{'─' * 70}[/dim]")
+                    advice = advisor.generate_advice(result)
+                    console.print(advice)
+                    console.print(f"[dim]{'─' * 70}[/dim]\n")
+
             else:
-                color = "red"
+                # 特殊节点
+                special_node = node['data']
+                node_type_cn = special_node_type_map.get(
+                    special_node['node_type'],
+                    special_node['node_type']
+                )
 
-            # 翻译当前节点类型
-            node_type_text = node_type_map.get(result['node_type'], result['node_type'])
+                # 特殊节点用黄色显示
+                display_parts = [
+                    f"[yellow]{i}. {special_node['date']}[/yellow]",
+                    f"[bold]{special_node['coin']}[/bold]",
+                    node_type_cn
+                ]
 
-            # 翻译参考节点类型
-            ref_node_type = result.get('reference_node_type', '')
-            ref_node_type_text = node_type_map.get(ref_node_type, ref_node_type) if ref_node_type else ''
+                # 对于逼近节点，添加"质量劣化"标识
+                if special_node['node_type'] == 'approaching':
+                    display_parts.append("[red]质量劣化[/red]")
+                elif special_node['node_type'] in ['quality_warning_entry', 'quality_warning_exit']:
+                    display_parts.append("[red]质量下降[/red]")
 
-            # 构建显示文本：币种 - 参考节点类型 → 当前节点类型 - 质量
-            display_parts = [
-                f"[{color}]{i}. {result['date']}[/{color}]",
-                f"[bold]{result['coin']}[/bold]"
-            ]
-
-            # 显示对比关系：参考节点 → 当前节点
-            if ref_node_type_text:
-                display_parts.append(f"{ref_node_type_text} → {node_type_text}")
-            else:
-                # 没有参考节点（第一次出现），只显示当前节点
-                display_parts.append(node_type_text)
-
-            display_parts.append(
-                f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
-            )
-
-            console.print("  " + " - ".join(display_parts))
-
-            # 如果是详细模式，显示完整分析
-            if verbose:
-                console.print(f"\n[dim]{'─' * 70}[/dim]")
-                advice = advisor.generate_advice(result)
-                console.print(advice)
-                console.print(f"[dim]{'─' * 70}[/dim]\n")
+                console.print("  " + " - ".join(display_parts))
 
     console.print()
 

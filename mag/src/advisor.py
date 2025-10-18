@@ -317,10 +317,6 @@ class MagAdvisor:
             else:
                 advice.append("  - 【观望】场外指数<1000，持有等待退场期第1天")
 
-        # 通用建议
-        advice.append("")
-        advice.append(f"当前质量：{quality}（{analysis_result.get('final_percentage', 0):+.1f}%）")
-
         # 质量修正提示
         if quality == '劣质':
             advice.append("")

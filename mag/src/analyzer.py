@@ -33,7 +33,7 @@ class MagAnalyzer:
 
         # 识别当前小节
         section_num, section_desc, section_pct = self._identify_section(
-            coin, date, coin_data['phase_type'], reference
+            coin, date, coin_data['phase_type'], reference, node_info['node_type']
         )
 
         # 参考节点的类型（从返回值中获取，表示它是以什么身份被选中的）
@@ -410,7 +410,7 @@ class MagAnalyzer:
         return True
 
     def _identify_section(self, coin: str, date: str, phase_type: str,
-                         reference: Dict) -> Tuple[int, str, float]:
+                         reference: Dict, current_node_type: str) -> Tuple[int, str, float]:
         """
         识别当前是第几小节，并返回小节描述和质量百分比
 
@@ -427,11 +427,11 @@ class MagAnalyzer:
             date: 当前日期
             phase_type: 阶段类型（进场期/退场期）
             reference: 参考节点信息
+            current_node_type: 当前节点类型
 
         Returns:
             (小节编号, 小节描述, 小节质量百分比)
         """
-        ref_node_type = reference.get('node_type', '')
 
         # 获取当前币种数据
         coin_data = self.db.get_coin_data(coin, date)
@@ -446,30 +446,30 @@ class MagAnalyzer:
         )
 
         if phase_type == '进场期':
-            # 判断是第几小节
-            if ref_node_type == 'enter_phase_day1':
-                # 参考节点是进场期第1天 → 预测第1小节
+            # 判断是第几小节：根据当前节点类型
+            if current_node_type == 'enter_phase_day1':
+                # 当前节点是进场期第1天 → 预测第1小节
                 section_num = 1
                 section_desc = "进场期第1小节质量"
-            elif ref_node_type == 'break_200':
-                # 参考节点是爆破跌200 → 当前是第N次爆破跌200，预测第N+1小节
+            elif current_node_type == 'break_200':
+                # 当前节点是爆破跌200 → 当前是第N次爆破跌200，预测第N+1小节
                 count = self._count_break_200_since_enter(coin, date)
                 section_num = count + 1
-                section_desc = f"进场期第{section_num}小节波动展开质量"
+                section_desc = f"进场期第{section_num}小节质量"
             else:
                 section_num = 1
                 section_desc = "进场期第1小节质量"
 
         else:  # 退场期
-            if ref_node_type == 'exit_phase_day1':
-                # 参考节点是退场期第1天 → 预测第1小节
+            if current_node_type == 'exit_phase_day1':
+                # 当前节点是退场期第1天 → 预测第1小节
                 section_num = 1
                 section_desc = "退场期第1小节质量"
-            elif ref_node_type == 'break_0':
-                # 参考节点是爆破负转正 → 当前是第N次爆破负转正，预测第N+1小节
+            elif current_node_type == 'break_0':
+                # 当前节点是爆破负转正 → 当前是第N次爆破负转正，预测第N+1小节
                 count = self._count_break_0_since_exit(coin, date)
                 section_num = count + 1
-                section_desc = f"退场期第{section_num}小节波动展开质量"
+                section_desc = f"退场期第{section_num}小节质量"
             else:
                 section_num = 1
                 section_desc = "退场期第1小节质量"
@@ -507,7 +507,7 @@ class MagAnalyzer:
 
             prev_break = current_break
 
-        return count + 1 if count > 0 else 1
+        return count
 
     def _count_break_0_since_exit(self, coin: str, current_date: str) -> int:
         """计算从最近的退场期第1天开始到current_date有多少次爆破负转正"""
@@ -540,7 +540,7 @@ class MagAnalyzer:
 
             prev_break = current_break
 
-        return count if count > 0 else 1
+        return count
 
     def _detect_special_nodes(self, coin: str, date: str, coin_data: Dict):
         """

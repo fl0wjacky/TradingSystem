@@ -552,6 +552,31 @@ class MagAnalyzer:
         Returns:
             小节起始日期，如果找不到返回None
         """
+        # 先检查当前日期是否本身就是小节起点
+        current_data = self.db.get_coin_data(coin, current_date)
+        if not current_data:
+            return None
+
+        # 检查当前日期是否是阶段第1天
+        if current_data['phase_days'] == 1:
+            return current_date
+
+        # 检查当前日期是否是爆破跨越节点
+        previous_data = self.db.get_previous_day_data(coin, current_date)
+        if previous_data:
+            prev_break = previous_data.get('break_index')
+            current_break = current_data.get('break_index')
+
+            if prev_break is not None and current_break is not None:
+                # 进场期：检查是否跌破200
+                if phase_type == '进场期' and prev_break >= 200 and current_break < 200:
+                    return current_date
+
+                # 退场期：检查是否负转正
+                if phase_type == '退场期' and prev_break < 0 and current_break >= 0:
+                    return current_date
+
+        # 当前日期不是小节起点，找之前的小节起点
         candidates = []
 
         if phase_type == '进场期':
@@ -646,36 +671,42 @@ class MagAnalyzer:
             section_start_date = self._find_current_section_start_date(coin, date, '进场期')
 
             if section_start_date:
-                # 获取从小节起始到当前日期的所有数据
-                history = self.db.get_coin_history(coin, limit=100)
-                section_data = [
-                    record for record in history
-                    if section_start_date <= record['date'] <= date
-                ]
+                # 检查本小节是否已经触发过质量修正
+                already_warned = self.db.has_quality_warning_in_section(
+                    coin, section_start_date, date, 'quality_warning_entry'
+                )
 
-                # 如果刚好是小节的第7次（或第14次）更新
-                if len(section_data) == check_count:
-                    # 检查是否有任何一次爆破指数超过200
-                    has_break_200 = any(d.get('break_index', 0) >= 200 for d in section_data)
+                if not already_warned:
+                    # 获取从小节起始到当前日期的所有数据
+                    history = self.db.get_coin_history(coin, limit=100)
+                    section_data = [
+                        record for record in history
+                        if section_start_date <= record['date'] <= date
+                    ]
 
-                    # 计算爆破指数的移动平均趋势
-                    break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
+                    # 如果刚好是小节的第7次（或第14次）更新
+                    if len(section_data) == check_count:
+                        # 检查是否有任何一次爆破指数超过200
+                        has_break_200 = any(d.get('break_index', 0) >= 200 for d in section_data)
 
-                    if len(break_indices) >= 2:
-                        # 简单判断：前半部分平均值 vs 后半部分平均值
-                        mid = len(break_indices) // 2
-                        first_half_avg = sum(break_indices[:mid]) / mid
-                        second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+                        # 计算爆破指数的移动平均趋势
+                        break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
 
-                        is_declining = second_half_avg < first_half_avg
+                        if len(break_indices) >= 2:
+                            # 简单判断：前半部分平均值 vs 后半部分平均值
+                            mid = len(break_indices) // 2
+                            first_half_avg = sum(break_indices[:mid]) / mid
+                            second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
 
-                        # 如果未破200且均值下降
-                        if not has_break_200 and is_declining:
-                            self.db.insert_special_node(
-                                date, coin, 'quality_warning_entry',
-                                f"进场期第{check_count}次更新 - 爆破指数未破200且均值下降 - 质量下降",
-                                offchain_index, break_index
-                            )
+                            is_declining = second_half_avg < first_half_avg
+
+                            # 如果未破200且均值下降
+                            if not has_break_200 and is_declining:
+                                self.db.insert_special_node(
+                                    date, coin, 'quality_warning_entry',
+                                    f"进场期第{check_count}次更新 - 爆破指数未破200且均值下降 - 质量下降",
+                                    offchain_index, break_index
+                                )
 
         # 6. 退场期质量修正检查（按小节计数）
         if phase_type == '退场期':
@@ -683,22 +714,28 @@ class MagAnalyzer:
             section_start_date = self._find_current_section_start_date(coin, date, '退场期')
 
             if section_start_date:
-                # 获取从小节起始到当前日期的所有数据
-                history = self.db.get_coin_history(coin, limit=100)
-                section_data = [
-                    record for record in history
-                    if section_start_date <= record['date'] <= date
-                ]
+                # 检查本小节是否已经触发过质量修正
+                already_warned = self.db.has_quality_warning_in_section(
+                    coin, section_start_date, date, 'quality_warning_exit'
+                )
 
-                # 如果刚好是小节的第7次（或第14次）更新
-                if len(section_data) == check_count:
-                    # 检查是否有任何一次爆破指数跌破0
-                    has_break_0 = any(d.get('break_index', 0) < 0 for d in section_data)
+                if not already_warned:
+                    # 获取从小节起始到当前日期的所有数据
+                    history = self.db.get_coin_history(coin, limit=100)
+                    section_data = [
+                        record for record in history
+                        if section_start_date <= record['date'] <= date
+                    ]
 
-                    # 如果未跌破0
-                    if not has_break_0:
-                        self.db.insert_special_node(
-                            date, coin, 'quality_warning_exit',
-                            f"退场期第{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
-                            offchain_index, break_index
-                        )
+                    # 如果刚好是小节的第7次（或第14次）更新
+                    if len(section_data) == check_count:
+                        # 检查是否有任何一次爆破指数跌破0
+                        has_break_0 = any(d.get('break_index', 0) < 0 for d in section_data)
+
+                        # 如果未跌破0
+                        if not has_break_0:
+                            self.db.insert_special_node(
+                                date, coin, 'quality_warning_exit',
+                                f"退场期第{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
+                                offchain_index, break_index
+                            )

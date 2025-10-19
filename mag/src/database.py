@@ -379,16 +379,26 @@ class MagDatabase:
             return None
 
     def delete_analysis_results(self, start_date: str, end_date: str) -> int:
-        """删除指定日期范围的分析结果，返回删除数量"""
+        """删除指定日期范围的分析结果和特殊节点，返回删除数量"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+
+            # 删除分析结果
             cursor.execute("""
                 DELETE FROM analysis_results
                 WHERE date >= ? AND date <= ?
             """, (start_date, end_date))
-            deleted = cursor.rowcount
+            deleted_analysis = cursor.rowcount
+
+            # 删除特殊节点
+            cursor.execute("""
+                DELETE FROM special_nodes
+                WHERE date >= ? AND date <= ?
+            """, (start_date, end_date))
+            deleted_special = cursor.rowcount
+
             conn.commit()
-            return deleted
+            return deleted_analysis + deleted_special
 
     def get_data_in_range(self, start_date: str, end_date: str) -> List[Dict]:
         """获取指定日期范围内的所有币种数据"""
@@ -476,3 +486,29 @@ class MagDatabase:
             """, (coin, phase_start_date, current_date, max_count))
 
             return [dict(row) for row in cursor.fetchall()]
+
+    def has_quality_warning_in_section(self, coin: str, section_start_date: str,
+                                       current_date: str, node_type: str) -> bool:
+        """
+        检查指定小节内是否已经存在质量修正节点
+
+        Args:
+            coin: 币种
+            section_start_date: 小节起始日期
+            current_date: 当前日期
+            node_type: 节点类型（quality_warning_entry 或 quality_warning_exit）
+
+        Returns:
+            如果已存在返回True，否则返回False
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) FROM special_nodes
+                WHERE coin = ?
+                  AND node_type = ?
+                  AND date >= ?
+                  AND date <= ?
+            """, (coin, node_type, section_start_date, current_date))
+            count = cursor.fetchone()[0]
+            return count > 0

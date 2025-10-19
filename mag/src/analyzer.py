@@ -542,6 +542,46 @@ class MagAnalyzer:
 
         return count
 
+    def _find_current_section_start_date(self, coin: str, current_date: str, phase_type: str) -> Optional[str]:
+        """
+        找到当前小节的起始日期
+
+        进场期：最近的进场期第1天或爆破跌200
+        退场期：最近的退场期第1天或爆破负转正
+
+        Returns:
+            小节起始日期，如果找不到返回None
+        """
+        candidates = []
+
+        if phase_type == '进场期':
+            # 找最近的进场期第1天
+            enter_node = self.db.find_last_phase_node(coin, '进场期', current_date)
+            if enter_node:
+                candidates.append(enter_node[0])
+
+            # 找最近的爆破跌200
+            break_200_node = self.db.find_crossing_node(coin, current_date, 200, 'down')
+            if break_200_node:
+                candidates.append(break_200_node[0])
+
+        else:  # 退场期
+            # 找最近的退场期第1天
+            exit_node = self.db.find_last_phase_node(coin, '退场期', current_date)
+            if exit_node:
+                candidates.append(exit_node[0])
+
+            # 找最近的爆破负转正
+            break_0_node = self.db.find_crossing_node(coin, current_date, 0, 'up')
+            if break_0_node:
+                candidates.append(break_0_node[0])
+
+        if not candidates:
+            return None
+
+        # 返回最近的日期（即当前小节的起点）
+        return max(candidates)
+
     def _detect_special_nodes(self, coin: str, date: str, coin_data: Dict):
         """
         检测并保存特殊关键节点
@@ -600,51 +640,65 @@ class MagAnalyzer:
                     offchain_index, break_index
                 )
 
-        # 5. 进场期质量修正检查
+        # 5. 进场期质量修正检查（按小节计数）
         if phase_type == '进场期':
-            recent_data = self.db.get_recent_data_since_phase_start(
-                coin, date, '进场期', check_count
-            )
+            # 找到当前小节的起始日期
+            section_start_date = self._find_current_section_start_date(coin, date, '进场期')
 
-            # 如果刚好到了第7次（或第14次）更新
-            if len(recent_data) == check_count:
-                # 检查是否有任何一次爆破指数超过200
-                has_break_200 = any(d.get('break_index', 0) >= 200 for d in recent_data)
+            if section_start_date:
+                # 获取从小节起始到当前日期的所有数据
+                history = self.db.get_coin_history(coin, limit=100)
+                section_data = [
+                    record for record in history
+                    if section_start_date <= record['date'] <= date
+                ]
 
-                # 计算爆破指数的移动平均趋势
-                break_indices = [d.get('break_index', 0) for d in recent_data if d.get('break_index') is not None]
+                # 如果刚好是小节的第7次（或第14次）更新
+                if len(section_data) == check_count:
+                    # 检查是否有任何一次爆破指数超过200
+                    has_break_200 = any(d.get('break_index', 0) >= 200 for d in section_data)
 
-                if len(break_indices) >= 2:
-                    # 简单判断：前半部分平均值 vs 后半部分平均值
-                    mid = len(break_indices) // 2
-                    first_half_avg = sum(break_indices[:mid]) / mid
-                    second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+                    # 计算爆破指数的移动平均趋势
+                    break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
 
-                    is_declining = second_half_avg < first_half_avg
+                    if len(break_indices) >= 2:
+                        # 简单判断：前半部分平均值 vs 后半部分平均值
+                        mid = len(break_indices) // 2
+                        first_half_avg = sum(break_indices[:mid]) / mid
+                        second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
 
-                    # 如果未破200且均值下降
-                    if not has_break_200 and is_declining:
+                        is_declining = second_half_avg < first_half_avg
+
+                        # 如果未破200且均值下降
+                        if not has_break_200 and is_declining:
+                            self.db.insert_special_node(
+                                date, coin, 'quality_warning_entry',
+                                f"进场期第{check_count}次更新 - 爆破指数未破200且均值下降 - 质量下降",
+                                offchain_index, break_index
+                            )
+
+        # 6. 退场期质量修正检查（按小节计数）
+        if phase_type == '退场期':
+            # 找到当前小节的起始日期
+            section_start_date = self._find_current_section_start_date(coin, date, '退场期')
+
+            if section_start_date:
+                # 获取从小节起始到当前日期的所有数据
+                history = self.db.get_coin_history(coin, limit=100)
+                section_data = [
+                    record for record in history
+                    if section_start_date <= record['date'] <= date
+                ]
+
+                # 如果刚好是小节的第7次（或第14次）更新
+                if len(section_data) == check_count:
+                    # 检查是否有任何一次爆破指数跌破0
+                    has_break_0 = any(d.get('break_index', 0) < 0 for d in section_data)
+
+                    # 如果未跌破0
+                    if not has_break_0:
                         self.db.insert_special_node(
-                            date, coin, 'quality_warning_entry',
-                            f"进场期{check_count}次更新 - 爆破指数未破200且均值下降 - 质量下降",
+                            date, coin, 'quality_warning_exit',
+                            f"退场期第{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
                             offchain_index, break_index
                         )
-
-        # 6. 退场期质量修正检查
-        if phase_type == '退场期':
-            recent_data = self.db.get_recent_data_since_phase_start(
-                coin, date, '退场期', check_count
-            )
-
-            # 如果刚好到了第7次（或第14次）更新
-            if len(recent_data) == check_count:
-                # 检查是否有任何一次爆破指数跌破0
-                has_break_0 = any(d.get('break_index', 0) < 0 for d in recent_data)
-
-                # 如果未跌破0
-                if not has_break_0:
-                    self.db.insert_special_node(
-                        date, coin, 'quality_warning_exit',
-                        f"退场期{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
-                        offchain_index, break_index
-                    )

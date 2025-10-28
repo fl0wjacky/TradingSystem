@@ -61,7 +61,10 @@ class MagDatabase:
                     change_percentage REAL,
                     phase_correction REAL DEFAULT 0,
                     us_stock_correction REAL DEFAULT 0,
+                    divergence_correction REAL DEFAULT 0,
+                    divergence_details TEXT,
                     break_index_correction REAL DEFAULT 0,
+                    approaching_correction REAL DEFAULT 0,
                     final_percentage REAL,
                     quality_rating TEXT,  -- 优质/一般/劣质
                     benchmark_chain_status TEXT,  -- 对标链状态

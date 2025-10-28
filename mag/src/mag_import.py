@@ -294,8 +294,18 @@ def batch_import_html(html_file: str):
                     continue
 
                 # 获取所有 <p> 标签的文本
+                # 处理 <br> 标签：将其转换为换行符，以便正确分割文本行
                 paragraphs = content_div.find_all('p')
-                text_lines = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+                text_lines = []
+                for p in paragraphs:
+                    # 将 <br> 和 <br/> 标签替换为换行符
+                    for br in p.find_all('br'):
+                        br.replace_with('\n')
+                    # 获取文本（保留换行符）
+                    text = p.get_text(strip=False)
+                    # 按行分割并去除空白行
+                    lines = [line.strip() for line in text.split('\n') if line.strip()]
+                    text_lines.extend(lines)
 
                 # 检查是否包含 #Mag 标签
                 if not text_lines or '#Mag' not in text_lines[0]:

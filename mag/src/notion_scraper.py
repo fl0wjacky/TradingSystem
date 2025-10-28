@@ -139,7 +139,8 @@ class NotionScraper:
         # Btc  场外指数682场外退场期第4天
         # Doge场外指数486场外退场期第4天（无空格）
         # 美股纳指 OTC 场外指数847场外退场期第4天（包含中文和空格）
-        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)(?:场外)?(进场期|退场期)第?(\d+)(天|月)', line)
+        # btc 场外指数1164 场外进场期第1天（场外指数和进场期之间有空格）
+        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场期|退场期)第?(\d+)(天|月)', line)
         if match1:
             return self._extract_coin_data(
                 coin_name=match1.group(1),
@@ -155,7 +156,8 @@ class NotionScraper:
         # === 格式2: 紧凑格式（爆破指数在同一行）===
         # hood 场外指数1089爆破114
         # 布伦特原油 场外指数798爆破指数-25
-        match2 = re.match(r'^([A-Za-z\u4e00-\u9fa5]+)\s+场外指数(\d+)爆破(?:指数)?(-?\d+)', line)
+        # circle 场外指数1125 爆破指数261（场外指数和爆破之间有空格）
+        match2 = re.match(r'^([A-Za-z\u4e00-\u9fa5]+)\s+场外指数(\d+)\s*爆破(?:指数)?(-?\d+)', line)
         if match2:
             # 向下查找进退场期信息
             phase_info = self._find_phase_info(lines, start_idx + 1)

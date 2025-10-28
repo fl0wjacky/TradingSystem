@@ -40,7 +40,7 @@ def parse_arguments():
 
 def main():
     """主程序入口"""
-    from src.config import config
+    from src.config import config, mag_config
 
     # 解析命令行参数
     args = parse_arguments()
@@ -53,6 +53,7 @@ def main():
 
     # 加载配置文件
     config.load_from_env()
+    mag_config.load_from_yaml()
 
     # 从命令行参数覆盖配置
     if args.firecrawl_key or args.notion_token:
@@ -64,6 +65,7 @@ def main():
     # 如果只是显示配置，则显示后退出
     if args.show_config:
         config.show_status()
+        mag_config.show_config()
         sys.exit(0)
 
     # 获取Notion URL
@@ -77,9 +79,9 @@ def main():
         console.print("[red]错误：未提供数据链接[/red]")
         sys.exit(1)
 
-    # 初始化数据库
+    # 初始化数据库和分析器（传入配置）
     db = MagDatabase()
-    analyzer = MagAnalyzer(db)
+    analyzer = MagAnalyzer(db, mag_config)
 
     try:
         # 1. 抓取并解析 Notion 数据

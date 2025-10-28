@@ -4,11 +4,13 @@
 """
 from typing import Dict, Optional, Tuple, List
 from src.database import MagDatabase
+from src.config import MagConfig
 
 
 class MagAnalyzer:
-    def __init__(self, db: MagDatabase):
+    def __init__(self, db: MagDatabase, config: Optional[MagConfig] = None):
         self.db = db
+        self.config = config if config else MagConfig()
 
     def analyze_coin(self, coin: str, date: str) -> Optional[Dict]:
         """
@@ -75,10 +77,10 @@ class MagAnalyzer:
             coin_data.get('break_index', 0)
         )
 
-        # 逼近修正：当前节点有逼近标记时，应用-5%修正
+        # 逼近修正：当前节点有逼近标记时，从配置读取修正值
         approaching_correction = 0
         if coin_data.get('is_approaching', 0) == 1:
-            approaching_correction = -5
+            approaching_correction = self.config.approaching_correction
 
         # 计算最终百分比
         final_pct = change_pct + phase_correction + divergence_correction + break_index_correction + approaching_correction
@@ -286,11 +288,13 @@ class MagAnalyzer:
             is_upward = current_index > ref_index
 
             if phase_type == '进场期':
-                # 进场期：向上跨越+5%，向下跨越-5%
-                phase_correction = 5 if is_upward else -5
+                # 进场期：从配置读取修正值
+                phase_correction = self.config.phase_transition['entry_phase']['upward'] if is_upward \
+                                  else self.config.phase_transition['entry_phase']['downward']
             else:  # 退场期
-                # 退场期：向上跨越-5%，向下跨越+5%（反向）
-                phase_correction = -5 if is_upward else 5
+                # 退场期：从配置读取修正值
+                phase_correction = self.config.phase_transition['exit_phase']['upward'] if is_upward \
+                                  else self.config.phase_transition['exit_phase']['downward']
 
         return (base_change, phase_correction)
 
@@ -359,21 +363,17 @@ class MagAnalyzer:
         total_correction = 0
         divergence_details = {}
 
-        # 龙头币影响力权重
-        dragon_weights = {
-            'ETH': -2.5,
-            'BNB': -1.5,
-            'SOL': -1.0,
-            'DOGE': -0.5
-        }
+        # 从配置读取龙头币影响力权重
+        dragon_weights = self.config.benchmark_divergence['dragon_leaders']
 
         # 美股纳指（所有币种都需要检查，除了美股自己）
         if not coin_data.get('is_us_stock'):
             us_stock = self.db.get_coin_data('NASDAQ', date)
             if us_stock and us_stock['phase_type'] != current_phase:
-                total_correction += -10
+                nasdaq_weight = self.config.benchmark_divergence['nasdaq']
+                total_correction += nasdaq_weight
                 divergence_details['NASDAQ'] = {
-                    'weight': -10,
+                    'weight': nasdaq_weight,
                     'phase': us_stock['phase_type']
                 }
 
@@ -381,9 +381,10 @@ class MagAnalyzer:
         if coin != 'BTC' and not coin_data.get('is_us_stock'):
             btc_data = self.db.get_coin_data('BTC', date)
             if btc_data and btc_data['phase_type'] != current_phase:
-                total_correction += -5
+                btc_weight = self.config.benchmark_divergence['btc']
+                total_correction += btc_weight
                 divergence_details['BTC'] = {
-                    'weight': -5,
+                    'weight': btc_weight,
                     'phase': btc_data['phase_type']
                 }
 
@@ -407,26 +408,29 @@ class MagAnalyzer:
     def _calculate_break_index_correction(self, node_type: str,
                                           break_index: int) -> float:
         """
-        爆破指数修正规则：
-        - 进场期第一天 且 爆破指数>200: -2.5%
-        - 退场期第一天 且 爆破指数<0: -2.5%
+        爆破指数修正规则（从配置读取）：
+        - 进场期第一天 且 爆破指数>200
+        - 退场期第一天 且 爆破指数<0
         """
         if node_type == 'enter_phase_day1' and break_index > 200:
-            return -2.5
+            return self.config.break_index['entry_phase_day1_above_200']
         elif node_type == 'exit_phase_day1' and break_index < 0:
-            return -2.5
+            return self.config.break_index['exit_phase_day1_below_0']
         return 0
 
     def _get_quality_rating(self, final_percentage: float) -> str:
         """
-        根据最终百分比判定质量等级
-        > 5%: 优质
-        -5% ~ 5%: 一般
-        < -5%: 劣质
+        根据最终百分比判定质量等级（从配置读取阈值）
+        > excellent_min: 优质
+        >= poor_max: 一般
+        < poor_max: 劣质
         """
-        if final_percentage > 5:
+        excellent_min = self.config.quality_thresholds['excellent_min']
+        poor_max = self.config.quality_thresholds['poor_max']
+
+        if final_percentage > excellent_min:
             return '优质'
-        elif final_percentage >= -5:
+        elif final_percentage >= poor_max:
             return '一般'
         else:
             return '劣质'

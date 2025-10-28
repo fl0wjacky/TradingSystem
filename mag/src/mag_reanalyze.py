@@ -27,8 +27,13 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
         coins: 指定币种列表，None表示所有币种
         verbose: 是否显示详细分析结果
     """
+    from src.config import mag_config
+
+    # 加载配置
+    mag_config.load_from_yaml()
+
     db = MagDatabase()
-    analyzer = MagAnalyzer(db)
+    analyzer = MagAnalyzer(db, mag_config)
     advisor = MagAdvisor()
 
     console.print(Panel.fit(

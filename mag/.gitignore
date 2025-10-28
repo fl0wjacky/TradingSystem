@@ -54,3 +54,6 @@ flow的笔记.html
 
 # Environment variables (contains API keys and secrets)
 .env
+
+# User configuration (generated from example)
+config.yaml

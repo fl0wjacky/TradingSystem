@@ -215,16 +215,14 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
             else:
                 # 特殊节点
                 special_node = node['data']
-                node_type_cn = special_node_type_map.get(
-                    special_node['node_type'],
-                    special_node['node_type']
-                )
+                # 直接使用 description 字段显示完整信息
+                node_description = special_node.get('description', special_node['node_type'])
 
                 # 特殊节点用黄色显示
                 display_parts = [
                     f"[yellow]{i}. {special_node['date']}[/yellow]",
                     f"[bold]{special_node['coin']}[/bold]",
-                    node_type_cn
+                    node_description
                 ]
 
                 # 对于逼近节点，添加"质量劣化"标识

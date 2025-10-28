@@ -632,7 +632,7 @@ class MagAnalyzer:
         if is_approaching == 1:
             self.db.insert_special_node(
                 date, coin, 'approaching',
-                f"提示逼近 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                f"{phase_type}提示逼近 - 场外指数：{offchain_index}，爆破指数：{break_index}",
                 offchain_index, break_index
             )
 

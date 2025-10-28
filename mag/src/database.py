@@ -244,15 +244,17 @@ class MagDatabase:
 
     def save_analysis_result(self, result: Dict):
         """保存分析结果"""
+        import json
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO analysis_results
                 (date, coin, node_type, reference_node_date, reference_offchain_index,
                  current_offchain_index, change_percentage, phase_correction,
-                 us_stock_correction, break_index_correction, approaching_correction,
+                 us_stock_correction, divergence_correction, divergence_details,
+                 break_index_correction, approaching_correction,
                  final_percentage, quality_rating, benchmark_chain_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 result['date'],
                 result['coin'],
@@ -263,6 +265,8 @@ class MagDatabase:
                 result.get('change_percentage', 0),
                 result.get('phase_correction', 0),
                 result.get('us_stock_correction', 0),
+                result.get('divergence_correction', 0),
+                json.dumps(result.get('divergence_details', {})),
                 result.get('break_index_correction', 0),
                 result.get('approaching_correction', 0),
                 result['final_percentage'],

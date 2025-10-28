@@ -54,15 +54,23 @@ class MagAdvisor:
         # 详细计算
         base_change = analysis_result['change_percentage']
         phase_corr = analysis_result['phase_correction']
-        us_corr = analysis_result['us_stock_correction']
+        divergence_corr = analysis_result.get('divergence_correction', 0)
+        divergence_details = analysis_result.get('divergence_details', {})
         break_corr = analysis_result.get('break_index_correction', 0)
         approaching_corr = analysis_result.get('approaching_correction', 0)
 
         calculation_parts = [f"基础涨幅 {base_change:+.1f}%"]
         if phase_corr != 0:
             calculation_parts.append(f"相变修正 {phase_corr:+.1f}%")
-        if us_corr != 0:
-            calculation_parts.append(f"美股修正 {us_corr:+.1f}%")
+
+        # 对标链背离修正（展开详情）
+        if divergence_corr != 0:
+            divergence_items = []
+            for coin_name, detail in divergence_details.items():
+                divergence_items.append(f"{coin_name}{detail['weight']:+.1f}%")
+            divergence_text = f"对标链背离({', '.join(divergence_items)})"
+            calculation_parts.append(divergence_text)
+
         if break_corr != 0:
             calculation_parts.append(f"爆破指数修正 {break_corr:+.1f}%")
         if approaching_corr != 0:

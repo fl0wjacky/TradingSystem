@@ -61,14 +61,13 @@ class MagAnalyzer:
             coin_data['phase_type']
         )
 
-        # 检查对标链状态并应用修正
-        us_stock_correction = 0
+        # 检查对标链状态（用于展示）
         benchmark_status = self._check_benchmark_chain(coin, date, coin_data)
 
-        # 如果美股在退场期，给予-10%修正
-        if 'us_stock' in benchmark_status and benchmark_status['us_stock']['phase_type'] == '退场期':
-            if coin_data['phase_type'] == '进场期':
-                us_stock_correction = -10
+        # 计算对标链背离修正
+        divergence_correction, divergence_details = self._calculate_benchmark_divergence_correction(
+            coin, date, coin_data
+        )
 
         # 爆破指数修正
         break_index_correction = self._calculate_break_index_correction(
@@ -82,7 +81,7 @@ class MagAnalyzer:
             approaching_correction = -5
 
         # 计算最终百分比
-        final_pct = change_pct + phase_correction + us_stock_correction + break_index_correction + approaching_correction
+        final_pct = change_pct + phase_correction + divergence_correction + break_index_correction + approaching_correction
 
         # 质量评级
         quality_rating = self._get_quality_rating(final_pct)
@@ -98,7 +97,8 @@ class MagAnalyzer:
             'current_offchain_index': current_offchain_index,  # 使用插值后的值
             'change_percentage': change_pct,
             'phase_correction': phase_correction,
-            'us_stock_correction': us_stock_correction,
+            'divergence_correction': divergence_correction,
+            'divergence_details': divergence_details,
             'break_index_correction': break_index_correction,
             'approaching_correction': approaching_correction,
             'final_percentage': final_pct,
@@ -298,11 +298,12 @@ class MagAnalyzer:
                               coin_data: Dict) -> Dict:
         """
         检查对标链状态：美股 → BTC → 龙头币
+        返回对标链信息，用于展示
         """
         benchmark_status = {}
 
-        # 如果是BTC或美股，不需要检查对标链
-        if coin == 'BTC' or coin_data.get('is_us_stock'):
+        # 如果是美股，不需要检查对标链
+        if coin_data.get('is_us_stock'):
             return benchmark_status
 
         # 获取美股数据
@@ -313,13 +314,14 @@ class MagAnalyzer:
                 'offchain_index': us_stock['offchain_index']
             }
 
-        # 获取BTC数据
-        btc_data = self.db.get_coin_data('BTC', date)
-        if btc_data:
-            benchmark_status['btc'] = {
-                'phase_type': btc_data['phase_type'],
-                'offchain_index': btc_data['offchain_index']
-            }
+        # 如果不是BTC，获取BTC数据
+        if coin != 'BTC':
+            btc_data = self.db.get_coin_data('BTC', date)
+            if btc_data:
+                benchmark_status['btc'] = {
+                    'phase_type': btc_data['phase_type'],
+                    'offchain_index': btc_data['offchain_index']
+                }
 
         # 如果是小币，还需要检查龙头币
         if not coin_data.get('is_dragon_leader') and coin != 'BTC':
@@ -335,6 +337,72 @@ class MagAnalyzer:
                 ]
 
         return benchmark_status
+
+    def _calculate_benchmark_divergence_correction(self, coin: str, date: str,
+                                                   coin_data: Dict) -> Tuple[float, Dict]:
+        """
+        计算对标链背离修正
+
+        扣分权重：
+        - 纳指背离：-10分
+        - BTC背离：-5分
+        - ETH背离：-2.5分
+        - BNB背离：-1.5分
+        - SOL背离：-1分
+        - DOGE背离：-0.5分
+
+        背离定义：当前币种阶段与对标币种阶段不一致
+
+        返回：(总扣分, 背离详情字典)
+        """
+        current_phase = coin_data.get('phase_type')
+        total_correction = 0
+        divergence_details = {}
+
+        # 龙头币影响力权重
+        dragon_weights = {
+            'ETH': -2.5,
+            'BNB': -1.5,
+            'SOL': -1.0,
+            'DOGE': -0.5
+        }
+
+        # 美股纳指（所有币种都需要检查，除了美股自己）
+        if not coin_data.get('is_us_stock'):
+            us_stock = self.db.get_coin_data('NASDAQ', date)
+            if us_stock and us_stock['phase_type'] != current_phase:
+                total_correction += -10
+                divergence_details['NASDAQ'] = {
+                    'weight': -10,
+                    'phase': us_stock['phase_type']
+                }
+
+        # BTC（除了BTC和美股，其他都需要检查）
+        if coin != 'BTC' and not coin_data.get('is_us_stock'):
+            btc_data = self.db.get_coin_data('BTC', date)
+            if btc_data and btc_data['phase_type'] != current_phase:
+                total_correction += -5
+                divergence_details['BTC'] = {
+                    'weight': -5,
+                    'phase': btc_data['phase_type']
+                }
+
+        # 龙头币（只有小币需要检查）
+        if not coin_data.get('is_dragon_leader') and coin != 'BTC' and not coin_data.get('is_us_stock'):
+            dragon_leaders = self.db.get_dragon_leaders(date)
+            for leader in dragon_leaders:
+                leader_coin = leader['coin']
+                leader_phase = leader['phase_type']
+
+                if leader_phase != current_phase and leader_coin in dragon_weights:
+                    weight = dragon_weights[leader_coin]
+                    total_correction += weight
+                    divergence_details[leader_coin] = {
+                        'weight': weight,
+                        'phase': leader_phase
+                    }
+
+        return (total_correction, divergence_details)
 
     def _calculate_break_index_correction(self, node_type: str,
                                           break_index: int) -> float:

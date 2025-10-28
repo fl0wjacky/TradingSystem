@@ -294,14 +294,16 @@ class NotionScraper:
             search_line = lines[j].strip()
             if not search_line:
                 continue
-            # 检查是否包含"逼近"
-            if '逼近' in search_line:
-                return 1
-            # 如果遇到下一个币种，停止（更宽松的匹配）
+
+            # 先检查停止条件：如果遇到下一个币种，停止（更宽松的匹配）
             # 只有当行首是币种名且后面跟着"场外"或单独的币名时才停止
             if j > start_idx:  # 跳过当前行本身
                 if re.match(r'^[A-Za-z$]+(?:\s+场外|\s*$)', search_line):
                     break
+
+            # 再检查是否包含"逼近"
+            if '逼近' in search_line:
+                return 1
         return 0
 
     def _find_phase_info(self, lines: List[str], start_idx: int) -> Optional[Dict]:

@@ -17,7 +17,7 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
-def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, verbose: bool = False):
+def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, verbose: bool = False, img_output: bool = False):
     """
     重新分析指定日期范围的数据
 
@@ -26,6 +26,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
         end_date: 结束日期 (YYYY-MM-DD)
         coins: 指定币种列表，None表示所有币种
         verbose: 是否显示详细分析结果
+        img_output: 是否导出节点列表图片
     """
     from src.config import mag_config
 
@@ -121,6 +122,11 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
 
     # 合并节点列表
     if analysis_results or special_nodes_in_range:
+        # 如果需要导出图片，创建单独的console用于记录节点列表
+        if img_output:
+            img_console = Console(record=True, width=100)
+            img_console.print(f"[bold cyan]Mag 节点分析 - {start_date} 至 {end_date}[/bold cyan]\n")
+
         console.print(f"[bold cyan]节点列表：[/bold cyan]\n")
 
         # 关键节点类型翻译
@@ -208,7 +214,12 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                         f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
                     )
 
-                console.print("  " + " - ".join(display_parts))
+                output_line = "  " + " - ".join(display_parts)
+                console.print(output_line)
+
+                # 如果需要导出图片，也输出到img_console
+                if img_output:
+                    img_console.print(output_line)
 
                 # 如果是详细模式，显示完整分析
                 if verbose:
@@ -236,7 +247,22 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 elif special_node['node_type'] in ['quality_warning_entry', 'quality_warning_exit']:
                     display_parts.append("[red]质量下降[/red]")
 
-                console.print("  " + " - ".join(display_parts))
+                output_line = "  " + " - ".join(display_parts)
+                console.print(output_line)
+
+                # 如果需要导出图片，也输出到img_console
+                if img_output:
+                    img_console.print(output_line)
+
+        # 如果需要导出图片，保存为SVG
+        if img_output:
+            output_filename = f"mag_analysis_{start_date}"
+            if start_date != end_date:
+                output_filename += f"_to_{end_date}"
+            output_filename += ".svg"
+
+            img_console.save_svg(output_filename, title=f"Mag 节点分析")
+            console.print(f"\n[green]✓[/green] 已导出节点列表图片: {output_filename}")
 
     console.print()
 
@@ -254,6 +280,7 @@ def main():
   start_date  - 开始日期 (YYYY-MM-DD)
   end_date    - 结束日期 (可选，默认为开始日期)
   -v, --verbose - 显示详细分析结果和建议
+  --img       - 导出节点列表为SVG图片
   coins       - 指定币种 (可选，多个币种用空格分隔)
 
 示例:
@@ -262,6 +289,9 @@ def main():
 
   # 重新分析单个日期并显示详细结果
   python3 mag_reanalyze.py 2025-10-14 -v
+
+  # 重新分析单个日期并导出节点列表图片
+  python3 mag_reanalyze.py 2025-10-14 --img
 
   # 重新分析日期范围的所有币种
   python3 mag_reanalyze.py 2025-10-10 2025-10-15
@@ -277,9 +307,10 @@ def main():
         """)
         sys.exit(0)
 
-    # 检查 verbose 选项
+    # 检查选项
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
-    args = [arg for arg in sys.argv[1:] if arg not in ['-v', '--verbose']]
+    img_output = '--img' in sys.argv
+    args = [arg for arg in sys.argv[1:] if arg not in ['-v', '--verbose', '--img']]
 
     if not args:
         console.print("[red]错误：请至少指定开始日期[/red]")
@@ -307,7 +338,7 @@ def main():
 
     # 执行重新分析
     try:
-        reanalyze_date_range(start_date, end_date, coins, verbose)
+        reanalyze_date_range(start_date, end_date, coins, verbose, img_output)
     except Exception as e:
         console.print(f"\n[red]错误：{str(e)}[/red]")
         import traceback

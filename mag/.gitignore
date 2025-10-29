@@ -58,6 +58,9 @@ flow的笔记.html
 *.html
 mag_analysis_*.svg
 
+# API test files
+/tmp/import_result.json
+
 # Claude settings (may contain sensitive info)
 .claude/settings.local.json
 

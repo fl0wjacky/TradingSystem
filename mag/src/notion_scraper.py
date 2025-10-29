@@ -135,17 +135,33 @@ class NotionScraper:
 
         line = lines[start_idx].strip()
 
+        # === 黑名单检查：排除已知的非币种词 ===
+        # 这些是参考数据、标题等，不应被解析为币种
+        non_coin_patterns = [
+            r'^前值$',  # 前值参考数据
+            r'^[进退]场期第\d+[天月]$',  # 独立的"进场期第X天"等描述行
+            r'.*更新.*',  # 包含"更新"
+            r'.*详述.*',  # 包含"详述"
+            r'.*更在.*',  # 包含"更在"
+        ]
+        for pattern in non_coin_patterns:
+            if re.match(pattern, line):
+                return None
+
         # === 格式1: 标准格式 ===
         # Btc  场外指数682场外退场期第4天
         # Doge场外指数486场外退场期第4天（无空格）
         # 美股纳指 OTC 场外指数847场外退场期第4天（包含中文和空格）
         # btc 场外指数1164 场外进场期第1天（场外指数和进场期之间有空格）
-        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场期|退场期)第?(\d+)(天|月)', line)
+        # Ondo 场外指数526场外退场第36天（无"期"字）
+        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
         if match1:
+            # 统一格式：补充"期"字
+            phase_type = match1.group(3) + '期'
             return self._extract_coin_data(
                 coin_name=match1.group(1),
                 offchain_index=int(match1.group(2)),
-                phase_type=match1.group(3),
+                phase_type=phase_type,
                 phase_days=int(match1.group(4)),
                 lines=lines,
                 start_idx=start_idx,
@@ -178,17 +194,42 @@ class NotionScraper:
         # $Trump
         # 场外指数357爆破指数-14
         # 场外退场第6天
-        if re.match(r'^[\$]?[A-Za-z]+$', line):
+        # 地产 （指导国内购置地产房产 大周期只月更）
+        # 场外指数1764 爆破238
+        # 进场期第3月
+        is_chinese_coin = re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）]+）)?$', line)
+        is_english_coin = re.match(r'^[\$]?[A-Za-z]+$', line)
+
+        if is_english_coin or is_chinese_coin:
+            # 中文币种需要额外验证：检查下一行是否是币种名（排除分节标题和说明文字）
+            if is_chinese_coin:
+                # 查找下一个非空行
+                next_non_empty = None
+                for k in range(start_idx + 1, min(start_idx + 3, len(lines))):
+                    if lines[k].strip():
+                        next_non_empty = lines[k].strip()
+                        break
+
+                # 如果下一行是英文币种名，说明当前行是分节标题，跳过
+                if next_non_empty and re.match(r'^[\$]?[A-Za-z]+', next_non_empty):
+                    return None  # 跳过此行
+
+                # 如果下一行也是纯中文，说明当前行是说明文字，跳过
+                # 这避免了"数据拟合平滑还需要时间"+"台积电"这种情况
+                if next_non_empty and re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）]+）)?$', next_non_empty):
+                    return None  # 跳过此行
+
             # 向下查找完整信息
             for j in range(start_idx + 1, min(start_idx + 5, len(lines))):
                 next_line = lines[j].strip()
                 if not next_line:
                     continue
 
-                # 查找：场外指数XXX爆破指数XXX
-                combined = re.match(r'场外指数(\d+)爆破指数(-?\d+)', next_line)
+                # 查找：场外指数XXX爆破指数XXX 或 场外指数XXX 爆破XXX（地产格式）
+                combined = re.match(r'场外指数(\d+)\s*爆破(?:指数)?\s*(-?\d+)', next_line)
                 if combined:
-                    phase_info = self._find_phase_info(lines, j + 1)
+                    # 从币名开始向下查找进退场期(覆盖进退场期在场外指数前后的情况)
+                    phase_info = self._find_phase_info(lines, start_idx + 1)
                     if phase_info:
                         return self._build_coin_data(
                             coin_name=line.strip('$'),
@@ -206,7 +247,8 @@ class NotionScraper:
                 only_off = re.match(r'场外指数(\d+)$', next_line)
                 if only_off:
                     break_info = self._find_break_index(lines, j + 1)
-                    phase_info = self._find_phase_info(lines, j + 1)
+                    # 从币名开始向下查找进退场期(覆盖进退场期在场外指数前后的情况)
+                    phase_info = self._find_phase_info(lines, start_idx + 1)
                     if break_info is not None and phase_info:
                         return self._build_coin_data(
                             coin_name=line.strip('$'),
@@ -224,6 +266,11 @@ class NotionScraper:
         # 地产 场外指数1764 爆破238 进场期第3月
         match4 = re.match(r'^([^ ]+)\s+(?:（[^）]+）\s+)?场外指数(\d+)\s+爆破(?:指数)?(\d+)', line)
         if match4:
+            # 验证币种名不是"进/退场期第X天"格式
+            coin_name_candidate = match4.group(1)
+            if re.match(r'^[进退]场期?第\d+[天月]', coin_name_candidate):
+                return None  # 跳过"进场期第61天 场外指数2618 爆破指数323"这类行
+
             phase_info = self._find_phase_info(lines, start_idx)
             if phase_info:
                 return self._build_coin_data(
@@ -314,10 +361,13 @@ class NotionScraper:
             search_line = lines[j].strip()
             if not search_line:
                 continue
-            match = re.search(r'(?:场外)?(进场期|退场期)第?(\d+)(天|月)', search_line)
+            # 支持两种格式：场外进场期第X天 和 场外进场第X天
+            match = re.search(r'(?:场外)?(进场|退场)期?第?(\d+)(天|月)', search_line)
             if match:
+                # 统一格式：补充"期"字
+                phase_type = match.group(1) + '期'
                 return {
-                    'phase_type': match.group(1),
+                    'phase_type': phase_type,
                     'phase_days': int(match.group(2))
                 }
             # 如果遇到下一个币种，停止
@@ -335,7 +385,7 @@ class NotionScraper:
         # 清理币名
         coin_name = coin_name.upper().strip('$')
         # 移除中文括号内容
-        coin_name = re.sub(r'（[^）]+）', '', coin_name)
+        coin_name = re.sub(r'（[^）]+）', '', coin_name).strip()
 
         # 特殊处理：美股
         is_us_stock = 0

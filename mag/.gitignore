@@ -7,6 +7,7 @@ __pycache__/
 env/
 venv/
 ENV/
+.venv/
 build/
 develop-eggs/
 dist/
@@ -22,6 +23,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Pipenv
+# Note: Pipfile and Pipfile.lock should be committed to version control
 
 # IDE
 .vscode/

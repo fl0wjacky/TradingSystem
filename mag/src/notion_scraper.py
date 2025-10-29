@@ -336,7 +336,14 @@ class NotionScraper:
         return None
 
     def _find_approaching(self, lines: List[str], start_idx: int) -> int:
-        """向下查找逼近关键字"""
+        """
+        向下查找逼近关键字
+        使用双重边界识别：
+        1. 币名行识别（英文/中文单独行）
+        2. 数据关键词第2次出现（场外指数/爆破指数）
+        """
+        seen_data_keyword = False  # 追踪是否已见过数据关键词
+
         for j in range(start_idx, min(start_idx + 10, len(lines))):
             if j >= len(lines):
                 break
@@ -344,13 +351,23 @@ class NotionScraper:
             if not search_line:
                 continue
 
-            # 先检查停止条件：如果遇到下一个币种，停止（更宽松的匹配）
-            # 只有当行首是币种名且后面跟着"场外"或单独的币名时才停止
-            if j > start_idx:  # 跳过当前行本身
-                if re.match(r'^[A-Za-z$]+(?:\s+场外|\s*$)', search_line):
+            # 追踪数据关键词（场外指数/爆破指数）
+            if '场外指数' in search_line or '爆破指数' in search_line:
+                if seen_data_keyword:
+                    # 第2次遇到数据关键词 → 新币种的数据区，停止
+                    break
+                seen_data_keyword = True
+
+            # 停止条件：只在start_idx之后检查（跳过币名行本身）
+            if j > start_idx:
+                # 停止条件A1：英文币名（含$符号）
+                if re.match(r'^[\$]?[A-Za-z]+$', search_line):
+                    break
+                # 停止条件A2：中文币名（1-4个纯中文字符）
+                if re.match(r'^[\u4e00-\u9fa5]{1,4}$', search_line):
                     break
 
-            # 再检查是否包含"逼近"
+            # 检查是否包含"逼近"
             if '逼近' in search_line:
                 return 1
         return 0

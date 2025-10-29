@@ -4,6 +4,8 @@ Mag 重新分析工具
 用于补录数据后，重新分析历史日期的关键节点
 """
 import sys
+import json
+import time
 from datetime import datetime, timedelta
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
@@ -15,6 +17,219 @@ from src.analyzer import MagAnalyzer
 from src.advisor import MagAdvisor
 
 console = Console()
+
+
+def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, export_html: bool = False):
+    """
+    重新分析指定日期范围的数据（JSON模式）
+
+    Args:
+        start_date: 开始日期 (YYYY-MM-DD)
+        end_date: 结束日期 (YYYY-MM-DD)
+        coins: 指定币种列表，None表示所有币种
+        export_html: 是否导出HTML文件
+
+    Returns:
+        dict: 包含分析结果的字典
+    """
+    from src.config import mag_config
+
+    start_time = time.time()
+
+    # 加载配置
+    mag_config.load_from_yaml()
+
+    db = MagDatabase()
+    analyzer = MagAnalyzer(db, mag_config)
+
+    # 删除该日期范围的旧分析结果
+    deleted_count = db.delete_analysis_results(start_date, end_date)
+
+    # 获取日期范围内的所有数据
+    all_data = db.get_data_in_range(start_date, end_date)
+
+    if not all_data:
+        return {
+            "success": False,
+            "error": "No data found",
+            "detail": f"指定日期范围内没有数据: {start_date} 至 {end_date}"
+        }
+
+    # 按日期分组
+    data_by_date = {}
+    for record in all_data:
+        date = record['date']
+        if date not in data_by_date:
+            data_by_date[date] = []
+        data_by_date[date].append(record)
+
+    # 按日期排序
+    sorted_dates = sorted(data_by_date.keys())
+
+    # 逐日分析
+    analysis_results = []
+    total_analyzed = 0
+
+    for date in sorted_dates:
+        records = data_by_date[date]
+
+        for record in records:
+            coin = record['coin']
+
+            # 如果指定了币种列表，跳过不在列表中的
+            if coins and coin not in coins:
+                continue
+
+            # 分析
+            result = analyzer.analyze_coin(coin, date)
+
+            if result:
+                analysis_results.append(result)
+                total_analyzed += 1
+
+    # 获取该日期范围内的特殊节点
+    all_special_nodes = db.get_special_nodes(limit=1000)
+    special_nodes_in_range = [
+        node for node in all_special_nodes
+        if start_date <= node['date'] <= end_date
+    ]
+
+    # 如果指定了币种，过滤特殊节点
+    if coins:
+        special_nodes_in_range = [
+            node for node in special_nodes_in_range
+            if node['coin'] in coins
+        ]
+
+    # 合并所有节点
+    all_nodes = []
+
+    # 添加关键节点
+    for result in analysis_results:
+        all_nodes.append({
+            'type': 'key',
+            'date': result['date'],
+            'coin': result['coin'],
+            'node_type': result['node_type'],
+            'data': result
+        })
+
+    # 添加特殊节点
+    for node in special_nodes_in_range:
+        all_nodes.append({
+            'type': 'special',
+            'date': node['date'],
+            'coin': node['coin'],
+            'node_type': node['node_type'],
+            'data': node
+        })
+
+    # 按日期和币种排序
+    all_nodes.sort(key=lambda x: (x['date'], x['coin']))
+
+    # 如果需要导出HTML
+    html_file = None
+    if export_html and all_nodes:
+        img_console = Console(record=True, width=200)
+        img_console.print(f"[bold cyan]Mag 节点分析 - {start_date} 至 {end_date}[/bold cyan]\n")
+
+        # 节点类型翻译映射
+        node_type_map = {
+            'enter_phase_day1': '进场期第1天',
+            'exit_phase_day1': '退场期第1天',
+            'break_200': '爆破跌破200',
+            'break_0': '爆破负转正'
+        }
+
+        # 显示所有节点
+        for i, node in enumerate(all_nodes, 1):
+            if node['type'] == 'key':
+                result = node['data']
+                quality = result['quality_rating']
+                if quality == '优质':
+                    color = "green"
+                elif quality == '一般':
+                    color = "yellow"
+                else:
+                    color = "red"
+
+                node_type_text = node_type_map.get(result['node_type'], result['node_type'])
+                ref_node_type = result.get('reference_node_type', '')
+                ref_node_type_text = node_type_map.get(ref_node_type, ref_node_type) if ref_node_type else ''
+
+                display_parts = [
+                    f"[{color}]{i}. {result['date']}[/{color}]",
+                    f"[bold]{result['coin']}[/bold]"
+                ]
+
+                if ref_node_type_text:
+                    display_parts.append(f"{ref_node_type_text} → {node_type_text}")
+                else:
+                    display_parts.append(node_type_text)
+
+                section_desc = result.get('section_desc', '')
+                if section_desc:
+                    display_parts.append(
+                        f"预测{section_desc}: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                    )
+                else:
+                    display_parts.append(
+                        f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                    )
+
+                output_line = "  " + " - ".join(display_parts)
+                img_console.print(output_line)
+
+            else:
+                special_node = node['data']
+                node_description = special_node.get('description', special_node['node_type'])
+
+                display_parts = [
+                    f"[yellow]{i}. {special_node['date']}[/yellow]",
+                    f"[bold]{special_node['coin']}[/bold]",
+                    node_description
+                ]
+
+                if special_node['node_type'] == 'approaching':
+                    display_parts.append("[red]质量劣化[/red]")
+                elif special_node['node_type'] in ['quality_warning_entry', 'quality_warning_exit']:
+                    display_parts.append("[red]质量下降[/red]")
+
+                output_line = "  " + " - ".join(display_parts)
+                img_console.print(output_line)
+
+        # 保存HTML
+        html_file = f"mag_analysis_{start_date}"
+        if start_date != end_date:
+            html_file += f"_to_{end_date}"
+        html_file += ".html"
+
+        img_console.save_html(html_file)
+
+    execution_time = time.time() - start_time
+
+    # 构建返回结果
+    result = {
+        "success": True,
+        "message": "重新分析完成",
+        "data": {
+            "date_range": {
+                "start": start_date,
+                "end": end_date
+            },
+            "total_records": len(all_data),
+            "analyzed_count": len(all_data) if not coins else sum(1 for r in all_data if r['coin'] in coins),
+            "detected_nodes_count": len(all_nodes),
+            "nodes": all_nodes,
+            "execution_time": f"{execution_time:.1f}s"
+        }
+    }
+
+    if html_file:
+        result["data"]["html_file"] = html_file
+        result["data"]["html_download_url"] = f"/api/v1/download/{html_file}"
+
+    return result
 
 
 def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, verbose: bool = False, img_output: bool = False):

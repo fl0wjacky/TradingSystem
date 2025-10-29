@@ -124,7 +124,8 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
     if analysis_results or special_nodes_in_range:
         # 如果需要导出图片，创建单独的console用于记录节点列表
         if img_output:
-            img_console = Console(record=True, width=100)
+            # 使用更大的width以支持中文显示，避免文字重叠
+            img_console = Console(record=True, width=200)
             img_console.print(f"[bold cyan]Mag 节点分析 - {start_date} 至 {end_date}[/bold cyan]\n")
 
         console.print(f"[bold cyan]节点列表：[/bold cyan]\n")
@@ -254,15 +255,15 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 if img_output:
                     img_console.print(output_line)
 
-        # 如果需要导出图片，保存为SVG
+        # 如果需要导出图片，保存为HTML
         if img_output:
             output_filename = f"mag_analysis_{start_date}"
             if start_date != end_date:
                 output_filename += f"_to_{end_date}"
-            output_filename += ".svg"
+            output_filename += ".html"
 
-            img_console.save_svg(output_filename, title=f"Mag 节点分析")
-            console.print(f"\n[green]✓[/green] 已导出节点列表图片: {output_filename}")
+            img_console.save_html(output_filename)
+            console.print(f"\n[green]✓[/green] 已导出节点列表HTML: {output_filename}")
 
     console.print()
 

@@ -49,6 +49,10 @@ Thumbs.db
 mag_import_template.csv
 mag_import_template.json
 
+# Test/Debug output files
+result*.txt
+coins_*.txt
+
 # Large HTML exports
 flow的笔记.html
 *.html

@@ -3,6 +3,8 @@
 Mag现货提示系统 - 主程序
 """
 import sys
+import json
+import time
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.panel import Panel
@@ -15,6 +17,99 @@ from src.advisor import MagAdvisor
 
 
 console = Console()
+
+
+def import_and_analyze_json(notion_url: str, auto_analyze: bool = True):
+    """
+    导入并分析数据（JSON模式）
+
+    Args:
+        notion_url: Notion数据链接
+        auto_analyze: 是否自动分析（目前总是进行分析）
+
+    Returns:
+        dict: 包含导入和分析结果的字典
+    """
+    from src.config import config, mag_config
+
+    start_time = time.time()
+
+    try:
+        # 加载配置文件
+        config.load_from_env()
+        mag_config.load_from_yaml()
+
+        # 初始化数据库和分析器
+        db = MagDatabase()
+        analyzer = MagAnalyzer(db, mag_config)
+
+        # 1. 抓取并解析 Notion 数据
+        scraper = NotionScraper(notion_url)
+        raw_data = scraper.fetch_data()
+        coin_data_list = scraper.parse_data(raw_data)
+
+        if not coin_data_list:
+            return {
+                "success": False,
+                "error": "No data parsed",
+                "detail": "从Notion链接中未能解析到任何币种数据"
+            }
+
+        # 2. 存储数据
+        for coin_data in coin_data_list:
+            db.insert_or_update_coin_data(coin_data)
+
+        # 3. 分析关键节点
+        analysis_results = []
+        for coin_data in coin_data_list:
+            result = analyzer.analyze_coin(coin_data['coin'], coin_data['date'])
+            if result:
+                analysis_results.append(result)
+
+        # 4. 获取特殊节点（当天）
+        latest_data = db.get_latest_date_data()
+        current_date = latest_data[0]['date'] if latest_data else None
+
+        special_nodes = []
+        if current_date:
+            all_special_nodes = db.get_special_nodes(limit=100)
+            special_nodes = [node for node in all_special_nodes if node['date'] == current_date]
+
+        # 5. 计算统计信息
+        enter_count = 0
+        exit_count = 0
+        if latest_data:
+            enter_count = sum(1 for d in latest_data if d['phase_type'] == '进场期')
+            exit_count = sum(1 for d in latest_data if d['phase_type'] == '退场期')
+
+        execution_time = time.time() - start_time
+
+        # 6. 构建返回结果
+        return {
+            "success": True,
+            "message": "导入并分析完成",
+            "data": {
+                "date": current_date,
+                "total_coins": len(coin_data_list),
+                "key_nodes_count": len(analysis_results),
+                "special_nodes_count": len(special_nodes),
+                "statistics": {
+                    "enter_phase": enter_count,
+                    "exit_phase": exit_count
+                },
+                "key_nodes": analysis_results,
+                "special_nodes": special_nodes,
+                "execution_time": f"{execution_time:.1f}s"
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "detail": traceback.format_exc()
+        }
 
 
 def parse_arguments():

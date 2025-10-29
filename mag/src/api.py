@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 
 from src.mag_reanalyze import reanalyze_date_range_json
+from src.mag_system import import_and_analyze_json
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -21,6 +22,20 @@ app = FastAPI(
 
 
 # ========== 请求模型 ==========
+
+class ImportRequest(BaseModel):
+    """导入并分析请求"""
+    notion_url: str = Field(..., description="Notion数据链接", example="https://serious-club-96d.notion.site/...")
+    auto_analyze: bool = Field(True, description="是否自动分析（目前总是进行分析）")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "notion_url": "https://serious-club-96d.notion.site/29b019fe17e080cf8f50c053afb95c80",
+                "auto_analyze": True
+            }
+        }
+
 
 class ReanalyzeRequest(BaseModel):
     """重新分析请求"""
@@ -52,10 +67,50 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs",
         "endpoints": {
+            "import": "POST /api/v1/import",
             "reanalyze": "POST /api/v1/reanalyze",
             "download": "GET /api/v1/download/{filename}"
         }
     }
+
+
+@app.post("/api/v1/import")
+async def import_data(request: ImportRequest):
+    """
+    导入Notion数据并分析
+
+    从Notion链接抓取数据，存储到数据库，并分析所有关键节点。
+    返回当天的关键节点和特殊节点列表。
+    """
+    # 验证URL格式（基本检查）
+    if not request.notion_url.startswith("http"):
+        raise HTTPException(
+            status_code=400,
+            detail="Notion URL格式不正确，必须以http开头"
+        )
+
+    # 执行导入和分析
+    try:
+        result = import_and_analyze_json(
+            notion_url=request.notion_url,
+            auto_analyze=request.auto_analyze
+        )
+
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("detail", result.get("error", "导入失败"))
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"导入过程出错: {str(e)}"
+        )
 
 
 @app.post("/api/v1/reanalyze")

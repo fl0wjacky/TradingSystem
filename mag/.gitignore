@@ -53,9 +53,10 @@ mag_import_template.json
 result*.txt
 coins_*.txt
 
-# Large HTML exports
+# Analysis output files (HTML/SVG)
 flow的笔记.html
 *.html
+mag_analysis_*.svg
 
 # Claude settings (may contain sensitive info)
 .claude/settings.local.json

@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import os
+import tempfile
 from datetime import datetime
 
 from src.mag_reanalyze import reanalyze_date_range_json
@@ -179,8 +180,8 @@ async def download_file(
             detail="文件名包含非法字符"
         )
 
-    # 构建文件路径（相对于项目根目录）
-    file_path = os.path.join(os.getcwd(), filename)
+    # 构建文件路径（从/tmp目录）
+    file_path = os.path.join(tempfile.gettempdir(), filename)
 
     # 检查文件是否存在
     if not os.path.exists(file_path):

@@ -4,8 +4,10 @@ Mag 重新分析工具
 用于补录数据后，重新分析历史日期的关键节点
 """
 import sys
+import os
 import json
 import time
+import tempfile
 from datetime import datetime, timedelta
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
@@ -198,13 +200,14 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
                 output_line = "  " + " - ".join(display_parts)
                 img_console.print(output_line)
 
-        # 保存HTML
+        # 保存HTML到/tmp目录
         html_file = f"mag_analysis_{start_date}"
         if start_date != end_date:
             html_file += f"_to_{end_date}"
         html_file += ".html"
 
-        img_console.save_html(html_file)
+        html_path = os.path.join(tempfile.gettempdir(), html_file)
+        img_console.save_html(html_path)
 
     execution_time = time.time() - start_time
 

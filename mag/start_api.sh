@@ -12,12 +12,12 @@ echo "=============================="
 echo "  Mag API Server"
 echo "=============================="
 echo ""
-echo "启动地址: http://127.0.0.1:8888"
-echo "API文档:  http://127.0.0.1:8888/docs"
+echo "启动地址: http://0.0.0.0:8888"
+echo "API文档:  http://0.0.0.0:8888/docs"
 echo ""
 echo "按 Ctrl+C 停止服务"
 echo "=============================="
 echo ""
 
 # 启动 FastAPI 服务
-python3 -m uvicorn src.api:app --host 127.0.0.1 --port 8888 --reload
+python3 -m uvicorn src.api:app --host 0.0.0.0 --port 8888 --reload

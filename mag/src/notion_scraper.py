@@ -12,8 +12,7 @@ from src.scrapers import (
     BaseScraper,
     FirecrawlAPIScraper,
     NotionAPIScraper,
-    PlaywrightScraper,
-    TestDataScraper
+    PlaywrightScraper
 )
 from src.config import config
 
@@ -47,9 +46,6 @@ class NotionScraper:
         if config.has_notion_api():
             scrapers.append(NotionAPIScraper(config.notion_api_token))
 
-        # 优先级4: 测试数据（兜底）
-        scrapers.append(TestDataScraper())
-
         # 显示降级策略
         console.print("[dim]降级策略顺序:[/dim]")
         for i, scraper in enumerate(scrapers, start=1):
@@ -67,9 +63,10 @@ class NotionScraper:
             "所有抓取方式均失败。\n"
             "请检查：\n"
             "1. 网络连接是否正常\n"
-            "2. Notion 页面是否可访问\n"
-            "3. 是否配置了有效的 API 密钥\n"
-            "建议：编辑 .env 文件，配置至少一个 API 密钥"
+            "2. Notion 页面是否可访问（可能需要等待页面加载完成）\n"
+            "3. Firecrawl API 配置是否正确（推荐）\n"
+            "4. Playwright 是否正常安装（playwright install chromium --with-deps）\n"
+            "5. Notion API Token 是否有效（可选）"
         )
 
     def parse_data(self, raw_text: str) -> List[Dict]:

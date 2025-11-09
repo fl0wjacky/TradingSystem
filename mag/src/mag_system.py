@@ -5,6 +5,11 @@ Mag现货提示系统 - 主程序
 import sys
 import json
 import time
+import warnings
+
+# 禁用 urllib3 的 OpenSSL 警告（macOS LibreSSL 兼容性问题）
+warnings.filterwarnings('ignore', message='urllib3 v2 only supports OpenSSL 1.1.1+')
+
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.panel import Panel

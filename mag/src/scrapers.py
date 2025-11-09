@@ -32,50 +32,50 @@ class BaseScraper(ABC):
 
 
 class FirecrawlAPIScraper(BaseScraper):
-    """Firecrawl API 抓取器"""
+    """Firecrawl API 抓取器（使用官方 SDK）"""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
 
     def scrape(self, url: str) -> Optional[str]:
-        """使用 Firecrawl API 抓取数据"""
+        """使用 Firecrawl 官方 SDK 抓取数据"""
         try:
-            import requests
+            from firecrawl import FirecrawlApp
 
             console.print(f"[dim]使用 {self.get_name()} 抓取数据...[/dim]")
 
-            # 调用 Firecrawl API
-            api_url = "https://api.firecrawl.dev/v1/scrape"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "url": url,
-                "formats": ["markdown"]
-            }
+            # 初始化 Firecrawl 客户端
+            app = FirecrawlApp(api_key=self.api_key)
 
-            response = requests.post(api_url, json=payload, headers=headers, timeout=120)
+            # 调用 scrape 方法
+            # timeout: 120秒超时
+            # waitFor: 等待5秒让 Notion 页面完全加载
+            result = app.scrape(
+                url,
+                formats=['markdown'],
+                timeout=120000,  # 120秒 (毫秒)
+                wait_for=5000,   # 等待5秒 (毫秒)
+                only_main_content=True
+            )
 
-            if response.status_code == 200:
-                data = response.json()
-                if 'data' in data and 'markdown' in data['data']:
-                    console.print(f"[green]✓[/green] {self.get_name()} 抓取成功")
-                    return data['data']['markdown']
+            # 检查返回结果
+            if result and 'markdown' in result:
+                console.print(f"[green]✓[/green] {self.get_name()} 抓取成功")
+                return result['markdown']
 
-            console.print(f"[yellow]✗ {self.get_name()} 抓取失败: HTTP {response.status_code}[/yellow]")
+            console.print(f"[yellow]✗ {self.get_name()} 抓取失败: 未返回 markdown 内容[/yellow]")
             return None
 
         except ImportError:
-            console.print(f"[yellow]✗ {self.get_name()} 不可用: 缺少 requests 库[/yellow]")
-            console.print("[dim]安装: pip install requests[/dim]")
+            console.print(f"[yellow]✗ {self.get_name()} 不可用: 缺少 firecrawl-py 库[/yellow]")
+            console.print("[dim]安装: pip install firecrawl-py[/dim]")
             return None
         except Exception as e:
             console.print(f"[yellow]✗ {self.get_name()} 抓取失败: {e}[/yellow]")
             return None
 
     def get_name(self) -> str:
-        return "Firecrawl API"
+        return "Firecrawl SDK"
 
 
 class NotionAPIScraper(BaseScraper):

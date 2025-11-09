@@ -82,20 +82,6 @@ class NotionScraper:
         """解析Notion页面文本，提取币种数据 - 使用灵活的状态机"""
         data_list = []
 
-        # 调试：保存原始数据
-        debug_file = '/tmp/notion_raw_data.txt'
-        try:
-            with open(debug_file, 'w', encoding='utf-8') as f:
-                f.write(raw_text)
-            print(f"\n[调试] 原始数据已保存到: {debug_file}")
-            print(f"[调试] 数据长度: {len(raw_text)} 字符")
-            print(f"[调试] 前500字符预览:")
-            print("=" * 60)
-            print(raw_text[:500])
-            print("=" * 60)
-        except Exception as e:
-            print(f"[调试] 保存调试文件失败: {e}")
-
         # 提取日期
         date_match = re.search(r'(\d{1,2}\.\d{1,2})', raw_text)
         if not date_match:

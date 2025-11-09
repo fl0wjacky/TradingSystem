@@ -192,8 +192,8 @@ class PlaywrightScraper(BaseScraper):
                 page = browser.new_page()
 
                 try:
-                    # 访问页面，等待网络空闲（最多 600 秒）
-                    page.goto(url, wait_until='networkidle', timeout=600000)
+                    # 访问页面，等待网络空闲（最多 180 秒）
+                    page.goto(url, wait_until='networkidle', timeout=180000)
 
                     # 额外等待 5 秒，确保动态内容完全加载
                     page.wait_for_timeout(5000)

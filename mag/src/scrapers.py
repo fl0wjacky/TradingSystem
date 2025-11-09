@@ -55,7 +55,7 @@ class FirecrawlAPIScraper(BaseScraper):
                 "formats": ["markdown"]
             }
 
-            response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+            response = requests.post(api_url, json=payload, headers=headers, timeout=120)
 
             if response.status_code == 200:
                 data = response.json()
@@ -179,7 +179,7 @@ class SimpleHTTPScraper(BaseScraper):
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
             }
-            response = requests.get(url, headers=headers, timeout=30)
+            response = requests.get(url, headers=headers, timeout=120)
 
             if response.status_code != 200:
                 console.print(f"[yellow]✗ {self.get_name()} 抓取失败: HTTP {response.status_code}[/yellow]")

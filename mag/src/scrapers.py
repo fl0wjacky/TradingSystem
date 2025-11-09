@@ -166,57 +166,64 @@ class NotionAPIScraper(BaseScraper):
         return "Notion API"
 
 
-class SimpleHTTPScraper(BaseScraper):
-    """简单 HTTP 请求抓取器（适用于公开页面）"""
+class PlaywrightScraper(BaseScraper):
+    """使用 Playwright 的无头浏览器抓取器（支持 JavaScript 渲染）"""
 
     def scrape(self, url: str) -> Optional[str]:
-        """使用简单 HTTP 请求抓取数据"""
+        """使用 Playwright 无头浏览器抓取需要 JavaScript 渲染的页面"""
         try:
-            import requests
-            from bs4 import BeautifulSoup
+            from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
             console.print(f"[dim]使用 {self.get_name()} 抓取数据...[/dim]")
 
-            # 发送请求
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-            }
-            response = requests.get(url, headers=headers, timeout=120)
+            with sync_playwright() as p:
+                # 启动无头浏览器（适合服务器环境）
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',              # 服务器环境必需
+                        '--disable-dev-shm-usage',   # 避免共享内存问题
+                        '--disable-gpu',             # 无 GPU 服务器
+                        '--disable-software-rasterizer'
+                    ]
+                )
 
-            if response.status_code != 200:
-                console.print(f"[yellow]✗ {self.get_name()} 抓取失败: HTTP {response.status_code}[/yellow]")
-                return None
+                page = browser.new_page()
 
-            # 解析 HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
+                try:
+                    # 访问页面，等待网络空闲（最多 120 秒）
+                    page.goto(url, wait_until='networkidle', timeout=120000)
 
-            # 尝试找到主要内容区域
-            # Notion 的公开页面通常内容在特定的 div 中
-            content_div = soup.find('div', class_='notion-page-content')
-            if not content_div:
-                # 尝试其他可能的容器
-                content_div = soup.find('article') or soup.find('main') or soup.body
+                    # 额外等待 5 秒，确保动态内容完全加载
+                    page.wait_for_timeout(5000)
 
-            if content_div:
-                # 提取文本
-                text = content_div.get_text(separator='\n', strip=True)
-                if text:
-                    console.print(f"[green]✓[/green] {self.get_name()} 抓取成功")
-                    return text
+                    # 获取渲染后的纯文本内容
+                    text = page.inner_text('body')
 
-            console.print(f"[yellow]✗ {self.get_name()} 抓取失败: 未找到内容[/yellow]")
-            return None
+                    browser.close()
+
+                    if text and len(text) > 100:  # 确保不是空页面
+                        console.print(f"[green]✓[/green] {self.get_name()} 抓取成功")
+                        return text
+
+                    console.print(f"[yellow]✗ {self.get_name()} 抓取失败: 内容为空或过短[/yellow]")
+                    return None
+
+                except PlaywrightTimeout:
+                    console.print(f"[yellow]✗ {self.get_name()} 抓取失败: 页面加载超时[/yellow]")
+                    browser.close()
+                    return None
 
         except ImportError:
-            console.print(f"[yellow]✗ {self.get_name()} 不可用: 缺少依赖库[/yellow]")
-            console.print("[dim]安装: pip install requests beautifulsoup4[/dim]")
+            console.print(f"[yellow]✗ {self.get_name()} 不可用: 缺少 playwright 库[/yellow]")
+            console.print("[dim]安装: pip install playwright && playwright install chromium --with-deps[/dim]")
             return None
         except Exception as e:
             console.print(f"[yellow]✗ {self.get_name()} 抓取失败: {e}[/yellow]")
             return None
 
     def get_name(self) -> str:
-        return "简单HTTP请求"
+        return "Playwright 无头浏览器"
 
 
 class TestDataScraper(BaseScraper):

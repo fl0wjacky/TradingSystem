@@ -12,7 +12,7 @@ from src.scrapers import (
     BaseScraper,
     FirecrawlAPIScraper,
     NotionAPIScraper,
-    SimpleHTTPScraper,
+    PlaywrightScraper,
     TestDataScraper
 )
 from src.config import config
@@ -36,29 +36,23 @@ class NotionScraper:
         # 构建抓取器列表（按优先级排序）
         scrapers: List[BaseScraper] = []
 
-        # 优先级1: Firecrawl MCP（在 Claude Code 环境中）
-        # 注意: MCP 工具需要在 Claude Code 环境中才能使用
-        # 这里我们假设如果在 Claude Code 环境，会由外部调用
-        # 所以这里不直接实现 MCP 抓取
-
-        # 优先级2: Firecrawl API
+        # 优先级1: Firecrawl SDK（云端渲染，有缓存，最快）
         if config.has_firecrawl_api():
             scrapers.append(FirecrawlAPIScraper(config.firecrawl_api_key))
 
-        # 优先级3: Notion API
+        # 优先级2: Playwright 无头浏览器（本地渲染，支持 JS）
+        scrapers.append(PlaywrightScraper())
+
+        # 优先级3: Notion API（如果配置了 token）
         if config.has_notion_api():
             scrapers.append(NotionAPIScraper(config.notion_api_token))
 
-        # 优先级4: 简单 HTTP 请求（适用于公开页面）
-        scrapers.append(SimpleHTTPScraper())
-
-        # 优先级5: 测试数据（最后降级）
+        # 优先级4: 测试数据（兜底）
         scrapers.append(TestDataScraper())
 
         # 显示降级策略
         console.print("[dim]降级策略顺序:[/dim]")
-        console.print("[dim]  1. Firecrawl MCP (Claude Code 环境)[/dim]")
-        for i, scraper in enumerate(scrapers, start=2):
+        for i, scraper in enumerate(scrapers, start=1):
             console.print(f"[dim]  {i}. {scraper.get_name()}[/dim]")
         console.print()
 

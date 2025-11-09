@@ -49,13 +49,13 @@ class FirecrawlAPIScraper(BaseScraper):
 
             # 调用 scrape 方法
             # maxAge: 使用2天内的缓存数据（可提速500%）
-            # timeout: 120秒超时
+            # timeout: 60秒超时（快速失败，降级到 Playwright）
             # waitFor: 等待5秒让 Notion 页面完全加载
             result = app.scrape(
                 url,
                 formats=['markdown'],
                 max_age=172800000,  # 2天缓存 (默认值，毫秒)
-                timeout=120000,     # 120秒 (毫秒)
+                timeout=60000,      # 60秒 (毫秒)
                 wait_for=5000,      # 等待5秒 (毫秒)
                 only_main_content=True
             )
@@ -191,8 +191,8 @@ class PlaywrightScraper(BaseScraper):
                 page = browser.new_page()
 
                 try:
-                    # 访问页面，等待网络空闲（最多 120 秒）
-                    page.goto(url, wait_until='networkidle', timeout=120000)
+                    # 访问页面，等待网络空闲（最多 600 秒）
+                    page.goto(url, wait_until='networkidle', timeout=600000)
 
                     # 额外等待 5 秒，确保动态内容完全加载
                     page.wait_for_timeout(5000)

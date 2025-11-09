@@ -48,13 +48,15 @@ class FirecrawlAPIScraper(BaseScraper):
             app = FirecrawlApp(api_key=self.api_key)
 
             # 调用 scrape 方法
+            # maxAge: 使用2天内的缓存数据（可提速500%）
             # timeout: 120秒超时
             # waitFor: 等待5秒让 Notion 页面完全加载
             result = app.scrape(
                 url,
                 formats=['markdown'],
-                timeout=120000,  # 120秒 (毫秒)
-                wait_for=5000,   # 等待5秒 (毫秒)
+                max_age=172800000,  # 2天缓存 (默认值，毫秒)
+                timeout=120000,     # 120秒 (毫秒)
+                wait_for=5000,      # 等待5秒 (毫秒)
                 only_main_content=True
             )
 

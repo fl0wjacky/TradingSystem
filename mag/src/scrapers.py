@@ -61,9 +61,10 @@ class FirecrawlAPIScraper(BaseScraper):
             )
 
             # 检查返回结果
-            if result and 'markdown' in result:
+            # Firecrawl SDK 返回 Document 对象，不是字典
+            if result and hasattr(result, 'markdown') and result.markdown:
                 console.print(f"[green]✓[/green] {self.get_name()} 抓取成功")
-                return result['markdown']
+                return result.markdown
 
             console.print(f"[yellow]✗ {self.get_name()} 抓取失败: 未返回 markdown 内容[/yellow]")
             return None

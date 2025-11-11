@@ -21,11 +21,11 @@ class MagAdvisor:
 
         # 构建输出文本
         output = []
-        output.append("=" * 60)
+        output.append("=" * 42)
         output.append(f"币种：{coin}")
         output.append(f"日期：{date}")
         output.append(f"当前状态：{phase_type}第{phase_days}天")
-        output.append("-" * 60)
+        output.append("-" * 42)
 
         # 对标链分析
         benchmark = analysis_result['benchmark_details']
@@ -85,7 +85,7 @@ class MagAdvisor:
             output.append(f"预测{section_desc}：{quality}（{final_pct:+.1f}%）")
         else:
             output.append(f"判定结果：【{quality}{phase_type}】")
-        output.append("-" * 60)
+        output.append("-" * 42)
 
         # 分级建议
         output.append("分级建议：")
@@ -98,7 +98,7 @@ class MagAdvisor:
         for line in advice:
             output.append(f"  {line}")
 
-        output.append("=" * 60)
+        output.append("=" * 42)
         output.append("")
 
         return "\n".join(output)

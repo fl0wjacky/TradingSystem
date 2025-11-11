@@ -44,6 +44,7 @@ class ReanalyzeRequest(BaseModel):
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)，默认等于start_date", example="2025-10-29")
     coins: Optional[List[str]] = Field(None, description="指定币种列表，null表示所有币种", example=["BTC", "ETH"])
     verbose: bool = Field(False, description="是否显示详细分析结果（暂不支持）")
+    export_txt: bool = Field(True, description="是否导出TXT文件")
     export_html: bool = Field(False, description="是否导出HTML文件")
 
     class Config:
@@ -53,6 +54,7 @@ class ReanalyzeRequest(BaseModel):
                 "end_date": "2025-10-29",
                 "coins": None,
                 "verbose": False,
+                "export_txt": True,
                 "export_html": True
             }
         }
@@ -139,6 +141,7 @@ async def reanalyze(request: ReanalyzeRequest):
             start_date=request.start_date,
             end_date=end_date,
             coins=request.coins,
+            export_txt=request.export_txt,
             export_html=request.export_html
         )
 
@@ -159,18 +162,24 @@ async def reanalyze(request: ReanalyzeRequest):
 
 @app.get("/api/v1/download/{filename}")
 async def download_file(
-    filename: str = Path(..., description="文件名，格式：mag_analysis_*.html")
+    filename: str = Path(..., description="文件名，格式：mag_analysis_*.html 或 mag_analysis_*.txt")
 ):
     """
-    下载生成的HTML文件
+    下载生成的HTML或TXT文件
 
-    只允许下载 mag_analysis_*.html 格式的文件，防止路径遍历攻击。
+    只允许下载 mag_analysis_*.html 或 mag_analysis_*.txt 格式的文件，防止路径遍历攻击。
     """
     # 安全检查：只允许下载特定格式的文件
-    if not filename.startswith("mag_analysis_") or not filename.endswith(".html"):
+    if not filename.startswith("mag_analysis_"):
         raise HTTPException(
             status_code=400,
-            detail="只允许下载 mag_analysis_*.html 格式的文件"
+            detail="只允许下载 mag_analysis_* 格式的文件"
+        )
+
+    if not (filename.endswith(".html") or filename.endswith(".txt")):
+        raise HTTPException(
+            status_code=400,
+            detail="只允许下载 .html 或 .txt 格式的文件"
         )
 
     # 防止路径遍历攻击
@@ -190,10 +199,13 @@ async def download_file(
             detail=f"文件不存在: {filename}"
         )
 
+    # 根据文件扩展名设置 media_type
+    media_type = "text/html" if filename.endswith(".html") else "text/plain"
+
     # 返回文件
     return FileResponse(
         path=file_path,
-        media_type="text/html",
+        media_type=media_type,
         filename=filename
     )
 

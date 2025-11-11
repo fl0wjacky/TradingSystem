@@ -93,9 +93,11 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
                 clean_advice = clean_advice.replace("[yellow]", "").replace("[/yellow]", "")
                 clean_advice = clean_advice.replace("[red]", "").replace("[/red]", "")
                 clean_advice = clean_advice.replace("[dim]", "").replace("[/dim]", "")
-                # 给每一行添加缩进
+                # 给每一行添加缩进，跳过分割线
                 for advice_line in clean_advice.split('\n'):
-                    if advice_line.strip():
+                    stripped = advice_line.strip()
+                    # 跳过空行和分割线（只包含 = 或 - 的行）
+                    if stripped and not all(c in '=-' for c in stripped):
                         lines.append("    " + advice_line)
                 lines.append("")
 

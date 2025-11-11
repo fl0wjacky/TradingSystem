@@ -148,12 +148,12 @@ class MagAnalyzer:
             prev_break = previous_data.get('break_index')
 
             if prev_break is not None:
-                # 检测跌破200
-                if prev_break >= 200 and break_index < 200:
+                # 检测跌破200（只在进场期有意义）
+                if coin_data['phase_type'] == '进场期' and prev_break >= 200 and break_index < 200:
                     return {'node_type': 'break_200'}
 
-                # 检测负转正
-                if prev_break < 0 and break_index >= 0:
+                # 检测负转正（只在退场期有意义）
+                if coin_data['phase_type'] == '退场期' and prev_break < 0 and break_index >= 0:
                     return {'node_type': 'break_0'}
 
         return None

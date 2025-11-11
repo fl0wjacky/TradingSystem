@@ -717,7 +717,7 @@ class MagAnalyzer:
             if prev_offchain < 1000 <= offchain_index:
                 self.db.insert_special_node(
                     date, coin, 'offchain_above_1000',
-                    f"场外指数超1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    f"{phase_type}场外指数超1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
                     offchain_index, break_index
                 )
 
@@ -725,7 +725,7 @@ class MagAnalyzer:
             if prev_offchain >= 1000 > offchain_index:
                 self.db.insert_special_node(
                     date, coin, 'offchain_below_1000',
-                    f"场外指数跌破1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    f"{phase_type}场外指数跌破1000 - 场外指数：{offchain_index}，爆破指数：{break_index}",
                     offchain_index, break_index
                 )
 
@@ -733,7 +733,7 @@ class MagAnalyzer:
             if prev_break < 200 <= break_index:
                 self.db.insert_special_node(
                     date, coin, 'break_above_200',
-                    f"爆破指数超200 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    f"{phase_type}爆破指数超200 - 场外指数：{offchain_index}，爆破指数：{break_index}",
                     offchain_index, break_index
                 )
 

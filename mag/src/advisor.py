@@ -154,7 +154,7 @@ class MagAdvisor:
         根据4种性格类型给出建议：
         1. 高稳健型：进场期第1天建仓 → 第1次爆破跌200减仓
         2. 高风险型：爆破指数转正加仓 → 退场期第1天减仓
-        3. 中间型-a：场外指数 > 1000 建仓，< 1000 减仓（美股/BTC/龙头币）
+        3. 中间型-a：场外指数 ＞ 1000 建仓，＜ 1000 减仓（美股/BTC/龙头币）
         4. 中间型-b：进场期第1天建仓 → 退场期第1天清仓（低精力成本）
         5. 中间型-c：进场期第1天建仓 → 爆破跌200场外指数下降时清仓（高性价比）
         6. 中间型-d：退场期负转正加仓，进场期第1天建仓完毕 → 场外指数1500-1000分批止盈（a8资金）
@@ -170,7 +170,7 @@ class MagAdvisor:
                 "▸ 所有性格类型：",
                 "  - 【立即清仓】转移至稳定币/现金",
                 "  - 优先减持山寨币和小市值币种",
-                "  - 核心资产BTC/ETH可留少量观察（<20%）",
+                "  - 核心资产BTC/ETH可留少量观察（＜20%）",
                 "  - 不建议开新仓位",
                 "",
                 f"当前质量：{quality}（{analysis_result.get('final_percentage', 0):+.1f}%）"
@@ -190,14 +190,14 @@ class MagAdvisor:
                 "",
                 "▸ 高风险型：",
                 "  - 【观望】等待爆破指数转正后加仓",
-                "  - 可小仓位试探（<10%）",
+                "  - 可小仓位试探（＜10%）",
                 "",
                 "▸ 中间型-a（美股/BTC/龙头币）：",
                 f"  - 场外指数：{offchain_index}",
             ])
 
             if offchain_index > 1000:
-                advice.append("  - 【建仓】场外指数>1000，可建仓（20%-30%）")
+                advice.append("  - 【建仓】场外指数＞1000，可建仓（20%-30%）")
             else:
                 advice.append("  - 【观望】等待场外指数突破1000")
 
@@ -238,9 +238,9 @@ class MagAdvisor:
                 ])
 
                 if offchain_index > 1000:
-                    advice.append("  - 【持有】场外指数>1000，维持仓位")
+                    advice.append("  - 【持有】场外指数＞1000，维持仓位")
                 else:
-                    advice.append("  - 【减仓】场外指数<1000，建议减仓")
+                    advice.append("  - 【减仓】场外指数＜1000，建议减仓")
 
                 advice.extend([
                     "",
@@ -267,9 +267,9 @@ class MagAdvisor:
                 ])
 
                 if offchain_index > 1000:
-                    advice.append("  - 【持有】场外指数>1000，维持仓位")
+                    advice.append("  - 【持有】场外指数＞1000，维持仓位")
                 else:
-                    advice.append("  - 【观望】场外指数<1000，观望")
+                    advice.append("  - 【观望】场外指数＜1000，观望")
 
                 advice.extend([
                     "",
@@ -302,9 +302,9 @@ class MagAdvisor:
             ])
 
             if offchain_index > 1000:
-                advice.append("  - 【持有】场外指数>1000，可持有")
+                advice.append("  - 【持有】场外指数＞1000，可持有")
             else:
-                advice.append("  - 【减仓】场外指数<1000，建议减仓")
+                advice.append("  - 【减仓】场外指数＜1000，建议减仓")
 
             advice.extend([
                 "",
@@ -319,10 +319,10 @@ class MagAdvisor:
             ])
 
             if offchain_index > 1500:
-                advice.append("  - 【观望】场外指数>1500，持有")
+                advice.append("  - 【观望】场外指数＞1500，持有")
             elif offchain_index > 1000:
                 advice.append("  - 【分批止盈】场外指数1500-1000区间，分批减仓")
             else:
-                advice.append("  - 【观望】场外指数<1000，持有等待退场期第1天")
+                advice.append("  - 【观望】场外指数＜1000，持有等待退场期第1天")
 
         return advice

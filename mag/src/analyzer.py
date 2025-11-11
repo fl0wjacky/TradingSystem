@@ -687,9 +687,10 @@ class MagAnalyzer:
         1. quality_warning_entry: 进场期质量修正（头7次更新爆破指数未破200且均值下降）
         2. quality_warning_exit: 退场期质量修正（头7次更新爆破指数未跌破0）
         3. break_above_200: 爆破指数超过200
-        4. offchain_above_1000: 场外指数超过1000
-        5. offchain_below_1000: 场外指数跌破1000
-        6. approaching: 提示逼近
+        4. break_below_0: 爆破指数正变负
+        5. offchain_above_1000: 场外指数超过1000
+        6. offchain_below_1000: 场外指数跌破1000
+        7. approaching: 提示逼近
         """
         phase_type = coin_data.get('phase_type')
         offchain_index = coin_data.get('offchain_index', 0)
@@ -737,7 +738,15 @@ class MagAnalyzer:
                     offchain_index, break_index
                 )
 
-        # 5. 进场期质量修正检查（按小节计数）
+            # 5. 爆破指数正变负（从大于等于0到小于0）
+            if prev_break >= 0 > break_index:
+                self.db.insert_special_node(
+                    date, coin, 'break_below_0',
+                    f"{phase_type}爆破指数正变负 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    offchain_index, break_index
+                )
+
+        # 6. 进场期质量修正检查（按小节计数）
         if phase_type == '进场期':
             # 找到当前小节的起始日期
             section_start_date = self._find_current_section_start_date(coin, date, '进场期')
@@ -780,7 +789,7 @@ class MagAnalyzer:
                                     offchain_index, break_index
                                 )
 
-        # 6. 退场期质量修正检查（按小节计数）
+        # 7. 退场期质量修正检查（按小节计数）
         if phase_type == '退场期':
             # 找到当前小节的起始日期
             section_start_date = self._find_current_section_start_date(coin, date, '退场期')

@@ -85,7 +85,6 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
             # 如果是详细模式，添加完整建议
             if verbose:
                 lines.append("")
-                lines.append("    " + "-" * 66)
                 advice = MagAdvisor.generate_advice(result)
                 # 去掉 Rich 格式标记，转换为纯文本
                 clean_advice = advice.replace("[bold]", "").replace("[/bold]", "")
@@ -98,7 +97,6 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
                 for advice_line in clean_advice.split('\n'):
                     if advice_line.strip():
                         lines.append("    " + advice_line)
-                lines.append("    " + "-" * 66)
                 lines.append("")
 
         else:

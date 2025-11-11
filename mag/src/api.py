@@ -44,7 +44,7 @@ class ReanalyzeRequest(BaseModel):
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)，默认等于start_date", example="2025-10-29")
     coins: Optional[List[str]] = Field(None, description="指定币种列表，null表示所有币种", example=["BTC", "ETH"])
     verbose: bool = Field(False, description="是否显示详细分析结果（暂不支持）")
-    export_txt: bool = Field(True, description="是否导出TXT文件")
+    export_txt: bool = Field(False, description="是否导出TXT文件")
     export_html: bool = Field(False, description="是否导出HTML文件")
 
     class Config:
@@ -54,8 +54,8 @@ class ReanalyzeRequest(BaseModel):
                 "end_date": "2025-10-29",
                 "coins": None,
                 "verbose": False,
-                "export_txt": True,
-                "export_html": True
+                "export_txt": False,
+                "export_html": False
             }
         }
 

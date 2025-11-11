@@ -34,14 +34,11 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> st
         str: 纯文本格式的输出
     """
     lines = []
-    lines.append("=" * 70)
     lines.append(f"Mag 节点分析 - {start_date} 至 {end_date}")
-    lines.append("=" * 70)
     lines.append("")
 
     if not all_nodes:
         lines.append("暂无检测到的节点")
-        lines.append("")
         return "\n".join(lines)
 
     # 节点类型翻译映射
@@ -101,15 +98,10 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> st
 
             lines.append("  " + " - ".join(display_parts))
 
-    lines.append("")
-    lines.append("-" * 70)
-    lines.append(f"总节点数: {len(all_nodes)}")
-    lines.append("=" * 70)
-
     return "\n".join(lines)
 
 
-def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, export_txt: bool = True, export_html: bool = False):
+def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, export_txt: bool = False, export_html: bool = False):
     """
     重新分析指定日期范围的数据（JSON模式）
 
@@ -117,7 +109,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
         start_date: 开始日期 (YYYY-MM-DD)
         end_date: 结束日期 (YYYY-MM-DD)
         coins: 指定币种列表，None表示所有币种
-        export_txt: 是否导出TXT文件（默认True）
+        export_txt: 是否导出TXT文件（默认False）
         export_html: 是否导出HTML文件（默认False）
 
     Returns:

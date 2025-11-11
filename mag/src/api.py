@@ -3,12 +3,9 @@
 Mag API Server
 提供HTTP API接口用于导入和分析数据
 """
-from fastapi import FastAPI, HTTPException, Path
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List
-import os
-import tempfile
 from datetime import datetime
 
 from src.mag_reanalyze import reanalyze_date_range_json
@@ -44,8 +41,6 @@ class ReanalyzeRequest(BaseModel):
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)，默认等于start_date", example="2025-10-29")
     coins: Optional[List[str]] = Field(None, description="指定币种列表，null表示所有币种", example=["BTC", "ETH"])
     verbose: bool = Field(False, description="是否显示详细分析建议")
-    export_txt: bool = Field(False, description="是否导出TXT文件")
-    export_html: bool = Field(False, description="是否导出HTML文件")
 
     class Config:
         schema_extra = {
@@ -53,9 +48,7 @@ class ReanalyzeRequest(BaseModel):
                 "start_date": "2025-10-29",
                 "end_date": "2025-10-29",
                 "coins": None,
-                "verbose": False,
-                "export_txt": False,
-                "export_html": False
+                "verbose": False
             }
         }
 
@@ -141,9 +134,7 @@ async def reanalyze(request: ReanalyzeRequest):
             start_date=request.start_date,
             end_date=end_date,
             coins=request.coins,
-            verbose=request.verbose,
-            export_txt=request.export_txt,
-            export_html=request.export_html
+            verbose=request.verbose
         )
 
         if not result.get("success"):
@@ -159,56 +150,6 @@ async def reanalyze(request: ReanalyzeRequest):
             status_code=500,
             detail=f"分析过程出错: {str(e)}"
         )
-
-
-@app.get("/api/v1/download/{filename}")
-async def download_file(
-    filename: str = Path(..., description="文件名，格式：mag_analysis_*.html 或 mag_analysis_*.txt")
-):
-    """
-    下载生成的HTML或TXT文件
-
-    只允许下载 mag_analysis_*.html 或 mag_analysis_*.txt 格式的文件，防止路径遍历攻击。
-    """
-    # 安全检查：只允许下载特定格式的文件
-    if not filename.startswith("mag_analysis_"):
-        raise HTTPException(
-            status_code=400,
-            detail="只允许下载 mag_analysis_* 格式的文件"
-        )
-
-    if not (filename.endswith(".html") or filename.endswith(".txt")):
-        raise HTTPException(
-            status_code=400,
-            detail="只允许下载 .html 或 .txt 格式的文件"
-        )
-
-    # 防止路径遍历攻击
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(
-            status_code=400,
-            detail="文件名包含非法字符"
-        )
-
-    # 构建文件路径（从/tmp目录）
-    file_path = os.path.join(tempfile.gettempdir(), filename)
-
-    # 检查文件是否存在
-    if not os.path.exists(file_path):
-        raise HTTPException(
-            status_code=404,
-            detail=f"文件不存在: {filename}"
-        )
-
-    # 根据文件扩展名设置 media_type
-    media_type = "text/html" if filename.endswith(".html") else "text/plain"
-
-    # 返回文件
-    return FileResponse(
-        path=file_path,
-        media_type=media_type,
-        filename=filename
-    )
 
 
 # ========== 健康检查 ==========

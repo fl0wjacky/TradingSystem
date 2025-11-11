@@ -7,7 +7,6 @@ import sys
 import os
 import json
 import time
-import tempfile
 from datetime import datetime, timedelta
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
@@ -119,7 +118,7 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
     return "\n".join(lines)
 
 
-def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, verbose: bool = False, export_txt: bool = False, export_html: bool = False):
+def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, verbose: bool = False):
     """
     重新分析指定日期范围的数据（JSON模式）
 
@@ -128,8 +127,6 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
         end_date: 结束日期 (YYYY-MM-DD)
         coins: 指定币种列表，None表示所有币种
         verbose: 是否显示详细分析建议（默认False）
-        export_txt: 是否导出TXT文件（默认False）
-        export_html: 是否导出HTML文件（默认False）
 
     Returns:
         dict: 包含分析结果的字典，总是包含 txt_output 字段
@@ -229,100 +226,8 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
     # 按日期和币种排序
     all_nodes.sort(key=lambda x: (x['date'], x['coin']))
 
-    # 如果需要导出HTML
-    html_file = None
-    if export_html and all_nodes:
-        img_console = Console(record=True, width=200)
-        img_console.print(f"[bold cyan]Mag 节点分析 - {start_date} 至 {end_date}[/bold cyan]\n")
-
-        # 节点类型翻译映射
-        node_type_map = {
-            'enter_phase_day1': '进场期第1天',
-            'exit_phase_day1': '退场期第1天',
-            'break_200': '爆破跌破200',
-            'break_0': '爆破负转正'
-        }
-
-        # 显示所有节点
-        for i, node in enumerate(all_nodes, 1):
-            if node['type'] == 'key':
-                result = node['data']
-                quality = result['quality_rating']
-                if quality == '优质':
-                    color = "green"
-                elif quality == '一般':
-                    color = "yellow"
-                else:
-                    color = "red"
-
-                node_type_text = node_type_map.get(result['node_type'], result['node_type'])
-                ref_node_type = result.get('reference_node_type', '')
-                ref_node_type_text = node_type_map.get(ref_node_type, ref_node_type) if ref_node_type else ''
-
-                display_parts = [
-                    f"[{color}]{i}. {result['date']}[/{color}]",
-                    f"[bold]{result['coin']}[/bold]"
-                ]
-
-                if ref_node_type_text:
-                    display_parts.append(f"{ref_node_type_text} → {node_type_text}")
-                else:
-                    display_parts.append(node_type_text)
-
-                section_desc = result.get('section_desc', '')
-                if section_desc:
-                    display_parts.append(
-                        f"预测{section_desc}: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
-                    )
-                else:
-                    display_parts.append(
-                        f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
-                    )
-
-                output_line = "  " + " - ".join(display_parts)
-                img_console.print(output_line)
-
-            else:
-                special_node = node['data']
-                node_description = special_node.get('description', special_node['node_type'])
-
-                display_parts = [
-                    f"[yellow]{i}. {special_node['date']}[/yellow]",
-                    f"[bold]{special_node['coin']}[/bold]",
-                    node_description
-                ]
-
-                if special_node['node_type'] == 'approaching':
-                    display_parts.append("[red]质量劣化[/red]")
-                elif special_node['node_type'] in ['quality_warning_entry', 'quality_warning_exit']:
-                    display_parts.append("[red]质量下降[/red]")
-
-                output_line = "  " + " - ".join(display_parts)
-                img_console.print(output_line)
-
-        # 保存HTML到/tmp目录
-        html_file = f"mag_analysis_{start_date}"
-        if start_date != end_date:
-            html_file += f"_to_{end_date}"
-        html_file += ".html"
-
-        html_path = os.path.join(tempfile.gettempdir(), html_file)
-        img_console.save_html(html_path)
-
     # 生成纯文本输出（总是生成）
     txt_output = _generate_text_output(start_date, end_date, all_nodes, verbose)
-
-    # 如果需要导出TXT文件
-    txt_file = None
-    if export_txt and all_nodes:
-        txt_file = f"mag_analysis_{start_date}"
-        if start_date != end_date:
-            txt_file += f"_to_{end_date}"
-        txt_file += ".txt"
-
-        txt_path = os.path.join(tempfile.gettempdir(), txt_file)
-        with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write(txt_output)
 
     execution_time = time.time() - start_time
 
@@ -343,16 +248,6 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
             "execution_time": f"{execution_time:.1f}s"
         }
     }
-
-    # 如果导出了TXT文件，添加下载URL
-    if txt_file:
-        result["data"]["txt_file"] = txt_file
-        result["data"]["download_txt_url"] = f"/api/v1/download/{txt_file}"
-
-    # 如果导出了HTML文件，添加下载URL（使用新的命名）
-    if html_file:
-        result["data"]["html_file"] = html_file
-        result["data"]["download_html_url"] = f"/api/v1/download/{html_file}"
 
     return result
 

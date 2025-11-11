@@ -43,7 +43,7 @@ class ReanalyzeRequest(BaseModel):
     start_date: str = Field(..., description="开始日期 (YYYY-MM-DD)", example="2025-10-29")
     end_date: Optional[str] = Field(None, description="结束日期 (YYYY-MM-DD)，默认等于start_date", example="2025-10-29")
     coins: Optional[List[str]] = Field(None, description="指定币种列表，null表示所有币种", example=["BTC", "ETH"])
-    verbose: bool = Field(False, description="是否显示详细分析结果（暂不支持）")
+    verbose: bool = Field(False, description="是否显示详细分析建议")
     export_txt: bool = Field(False, description="是否导出TXT文件")
     export_html: bool = Field(False, description="是否导出HTML文件")
 
@@ -141,6 +141,7 @@ async def reanalyze(request: ReanalyzeRequest):
             start_date=request.start_date,
             end_date=end_date,
             coins=request.coins,
+            verbose=request.verbose,
             export_txt=request.export_txt,
             export_html=request.export_html
         )

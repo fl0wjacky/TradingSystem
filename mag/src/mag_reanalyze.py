@@ -21,7 +21,7 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
-def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> str:
+def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbose: bool = False) -> str:
     """
     生成纯文本格式的节点分析输出
 
@@ -29,6 +29,7 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> st
         start_date: 开始日期
         end_date: 结束日期
         all_nodes: 所有节点列表
+        verbose: 是否显示详细分析建议
 
     Returns:
         str: 纯文本格式的输出
@@ -81,6 +82,25 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> st
 
             lines.append("  " + " - ".join(display_parts))
 
+            # 如果是详细模式，添加完整建议
+            if verbose:
+                lines.append("")
+                lines.append("    " + "-" * 66)
+                advice = MagAdvisor.generate_advice(result)
+                # 去掉 Rich 格式标记，转换为纯文本
+                clean_advice = advice.replace("[bold]", "").replace("[/bold]", "")
+                clean_advice = clean_advice.replace("[cyan]", "").replace("[/cyan]", "")
+                clean_advice = clean_advice.replace("[green]", "").replace("[/green]", "")
+                clean_advice = clean_advice.replace("[yellow]", "").replace("[/yellow]", "")
+                clean_advice = clean_advice.replace("[red]", "").replace("[/red]", "")
+                clean_advice = clean_advice.replace("[dim]", "").replace("[/dim]", "")
+                # 给每一行添加缩进
+                for advice_line in clean_advice.split('\n'):
+                    if advice_line.strip():
+                        lines.append("    " + advice_line)
+                lines.append("    " + "-" * 66)
+                lines.append("")
+
         else:
             special_node = node['data']
             node_description = special_node.get('description', special_node['node_type'])
@@ -101,7 +121,7 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list) -> st
     return "\n".join(lines)
 
 
-def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, export_txt: bool = False, export_html: bool = False):
+def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, verbose: bool = False, export_txt: bool = False, export_html: bool = False):
     """
     重新分析指定日期范围的数据（JSON模式）
 
@@ -109,6 +129,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
         start_date: 开始日期 (YYYY-MM-DD)
         end_date: 结束日期 (YYYY-MM-DD)
         coins: 指定币种列表，None表示所有币种
+        verbose: 是否显示详细分析建议（默认False）
         export_txt: 是否导出TXT文件（默认False）
         export_html: 是否导出HTML文件（默认False）
 
@@ -291,7 +312,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
         img_console.save_html(html_path)
 
     # 生成纯文本输出（总是生成）
-    txt_output = _generate_text_output(start_date, end_date, all_nodes)
+    txt_output = _generate_text_output(start_date, end_date, all_nodes, verbose)
 
     # 如果需要导出TXT文件
     txt_file = None

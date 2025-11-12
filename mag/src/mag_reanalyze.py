@@ -115,6 +115,23 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
 
             lines.append("  " + " - ".join(display_parts))
 
+            # 如果是详细模式且是特殊操作节点，生成建议
+            if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500']:
+                lines.append("")
+                advice = MagAdvisor.generate_special_advice(special_node)
+                # 去掉 Rich 格式标记，转换为纯文本
+                clean_advice = advice.replace("[bold]", "").replace("[/bold]", "")
+                clean_advice = clean_advice.replace("[cyan]", "").replace("[/cyan]", "")
+                clean_advice = clean_advice.replace("[green]", "").replace("[/green]", "")
+                clean_advice = clean_advice.replace("[yellow]", "").replace("[/yellow]", "")
+                clean_advice = clean_advice.replace("[red]", "").replace("[/red]", "")
+                clean_advice = clean_advice.replace("[dim]", "").replace("[/dim]", "")
+                # 给每一行添加缩进
+                for advice_line in clean_advice.split('\n'):
+                    if advice_line.strip():
+                        lines.append("    " + advice_line)
+                lines.append("")
+
     return "\n".join(lines)
 
 
@@ -489,6 +506,13 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 # 如果需要导出图片，也输出到img_console
                 if img_output:
                     img_console.print(output_line)
+
+                # 如果是详细模式且是特殊操作节点，显示完整分析
+                if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500']:
+                    console.print(f"\n[dim]{'─' * 70}[/dim]")
+                    advice = advisor.generate_special_advice(special_node)
+                    console.print(advice)
+                    console.print(f"[dim]{'─' * 70}[/dim]\n")
 
         # 如果需要导出图片，保存为HTML
         if img_output:

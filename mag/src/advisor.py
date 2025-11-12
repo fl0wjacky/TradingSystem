@@ -176,32 +176,17 @@ class MagAdvisor:
 
         if node_type == 'enter_phase_day1' and quality == '优质':
             # 进场期第1天且质量优质 → 建仓
-            conservative_advice.extend([
-                "▸ 高稳健型：",
-                "  - 【建仓】进场期第1天，质量优质",
-                "  - 建议分批建仓（3-5批，每批15%-20%）",
-                "  - 设置紧密止损（-5%~-8%）",
-                "  - 第1次爆破跌200时清仓"
-            ])
+            conservative_advice.append("▸ 高稳健型: 建仓")
             has_advice = True
 
         elif node_type == 'break_200' and break_200_count == 1:
             # 进场期第1次爆破跌200 → 清仓
-            conservative_advice.extend([
-                "▸ 高稳健型：",
-                "  - 【清仓】进场期第1次爆破跌破200",
-                "  - 立即清仓，转移至稳定币/现金",
-                "  - 等待下一次进场期第1天优质建仓机会"
-            ])
+            conservative_advice.append("▸ 高稳健型: 清仓")
             has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
-            conservative_advice.extend([
-                "▸ 高稳健型：",
-                "  - 【清仓】退场期第1天",
-                "  - 立即清仓，转移至稳定币/现金"
-            ])
+            conservative_advice.append("▸ 高稳健型: 清仓")
             has_advice = True
 
         if conservative_advice:
@@ -213,22 +198,12 @@ class MagAdvisor:
 
         if node_type == 'break_0' and phase_type == '退场期' and quality == '劣质':
             # 退场期爆破负转正且质量劣质 → 分批建仓
-            aggressive_advice.extend([
-                "▸ 高风险型：",
-                "  - 【分批建仓】退场期爆破负转正，质量劣质",
-                "  - 分批建仓（建议3-5批）",
-                "  - 设置追踪止损",
-                "  - 退场期第1天清仓"
-            ])
+            aggressive_advice.append("▸ 高风险型: 建仓")
             has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
-            aggressive_advice.extend([
-                "▸ 高风险型：",
-                "  - 【清仓】退场期第1天",
-                "  - 立即清仓，转移至稳定币/现金"
-            ])
+            aggressive_advice.append("▸ 高风险型: 清仓")
             has_advice = True
 
         if aggressive_advice:
@@ -267,21 +242,12 @@ class MagAdvisor:
 
         if node_type == 'enter_phase_day1' and quality == '优质':
             # 进场期第1天且质量优质 → 建仓
-            middle_b_advice.extend([
-                "▸ 中间型-b（低精力成本）：",
-                "  - 【建仓】进场期第1天，质量优质",
-                "  - 建立基础仓位（30%-40%）",
-                "  - 退场期第1天清仓"
-            ])
+            middle_b_advice.append("▸ 中间型-b(低精力成本): 建仓")
             has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
-            middle_b_advice.extend([
-                "▸ 中间型-b（低精力成本）：",
-                "  - 【清仓】退场期第1天",
-                "  - 立即清仓，转移至稳定币/现金"
-            ])
+            middle_b_advice.append("▸ 中间型-b(低精力成本): 清仓")
             has_advice = True
 
         if middle_b_advice:
@@ -293,31 +259,17 @@ class MagAdvisor:
 
         if node_type == 'enter_phase_day1' and quality == '优质':
             # 进场期第1天且质量优质 → 建仓
-            middle_c_advice.extend([
-                "▸ 中间型-c（高性价比）：",
-                "  - 【建仓】进场期第1天，质量优质",
-                "  - 建立仓位（30%-40%）",
-                "  - 跟踪爆破跌200的场外指数变化"
-            ])
+            middle_c_advice.append("▸ 中间型-c(高性价比): 建仓")
             has_advice = True
 
         elif node_type == 'break_200' and break_200_count >= 2 and final_percentage < 0:
             # 进场期第2次或以上爆破跌200且质量为负 → 清仓
-            middle_c_advice.extend([
-                "▸ 中间型-c（高性价比）：",
-                f"  - 【清仓】第{break_200_count}次爆破跌200，质量为负（{final_percentage:+.1f}%）",
-                "  - 场外指数下降，建议清仓",
-                "  - 转移至稳定币/现金"
-            ])
+            middle_c_advice.append("▸ 中间型-c(高性价比): 清仓")
             has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
-            middle_c_advice.extend([
-                "▸ 中间型-c（高性价比）：",
-                "  - 【清仓】退场期第1天",
-                "  - 立即清仓，转移至稳定币/现金"
-            ])
+            middle_c_advice.append("▸ 中间型-c(高性价比): 清仓")
             has_advice = True
 
         if middle_c_advice:
@@ -328,44 +280,25 @@ class MagAdvisor:
         middle_d_advice = []
 
         if node_type == 'break_0' and phase_type == '退场期' and quality == '劣质':
-            # 退场期爆破负转正且质量劣质 → 分批建仓
-            middle_d_advice.extend([
-                "▸ 中间型-d（a8资金）：",
-                "  - 【分批建仓】退场期爆破负转正，质量劣质",
-                "  - 分批建仓（建议3-5批）",
-                "  - 场外指数1500-1000区间分批止盈"
-            ])
+            # 退场期爆破负转正且质量劣质 → 建仓
+            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
             has_advice = True
 
         elif node_type == 'enter_phase_day1':
-            # 进场期第1天 → 建仓完毕
-            middle_d_advice.extend([
-                "▸ 中间型-d（a8资金）：",
-                "  - 【建仓完毕】进场期第1天",
-                "  - 完成建仓操作",
-                "  - 场外指数1500-1000区间分批止盈"
-            ])
+            # 进场期第1天 → 建仓
+            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
             has_advice = True
 
         elif node_type == 'break_200':
             # 进场期爆破跌200 → 根据场外指数判断
             if 1000 < offchain_index < 1500:
-                middle_d_advice.extend([
-                    "▸ 中间型-d（a8资金）：",
-                    f"  - 场外指数：{offchain_index}",
-                    "  - 【分批止盈】场外指数在1500-1000区间",
-                    "  - 建议分3-5批止盈"
-                ])
+                middle_d_advice.append("▸ 中间型-d(a8资金): 止盈")
                 has_advice = True
             # 场外指数 > 1500 或 < 1000 时，不显示中间型d
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
-            middle_d_advice.extend([
-                "▸ 中间型-d（a8资金）：",
-                "  - 【清仓】退场期第1天",
-                "  - 立即清仓，转移至稳定币/现金"
-            ])
+            middle_d_advice.append("▸ 中间型-d(a8资金): 清仓")
             has_advice = True
 
         if middle_d_advice:

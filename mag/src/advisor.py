@@ -174,10 +174,14 @@ class MagAdvisor:
         # ========== 高稳健型 ==========
         conservative_advice = []
 
-        if node_type == 'enter_phase_day1' and quality == '优质':
-            # 进场期第1天且质量优质 → 建仓
-            conservative_advice.append("▸ 高稳健型: 建仓")
-            has_advice = True
+        if node_type == 'enter_phase_day1':
+            # 进场期第1天 → 根据质量判断
+            if quality == '优质':
+                conservative_advice.append("▸ 高稳健型: 建仓")
+                has_advice = True
+            elif quality == '一般':
+                conservative_advice.append("▸ 高稳健型: 少量建仓")
+                has_advice = True
 
         elif node_type == 'break_200' and break_200_count == 1:
             # 进场期第1次爆破跌200 → 清仓
@@ -196,10 +200,14 @@ class MagAdvisor:
         # ========== 高风险型 ==========
         aggressive_advice = []
 
-        if node_type == 'break_0' and phase_type == '退场期' and quality == '劣质':
-            # 退场期爆破负转正且质量劣质 → 分批建仓
-            aggressive_advice.append("▸ 高风险型: 建仓")
-            has_advice = True
+        if node_type == 'break_0' and phase_type == '退场期':
+            # 退场期爆破负转正 → 根据质量判断
+            if quality == '劣质':
+                aggressive_advice.append("▸ 高风险型: 建仓")
+                has_advice = True
+            elif quality == '一般':
+                aggressive_advice.append("▸ 高风险型: 少量建仓")
+                has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
@@ -240,10 +248,14 @@ class MagAdvisor:
         # ========== 中间型-b（低精力成本）==========
         middle_b_advice = []
 
-        if node_type == 'enter_phase_day1' and quality == '优质':
-            # 进场期第1天且质量优质 → 建仓
-            middle_b_advice.append("▸ 中间型-b(低精力成本): 建仓")
-            has_advice = True
+        if node_type == 'enter_phase_day1':
+            # 进场期第1天 → 根据质量判断
+            if quality == '优质':
+                middle_b_advice.append("▸ 中间型-b(低精力成本): 建仓")
+                has_advice = True
+            elif quality == '一般':
+                middle_b_advice.append("▸ 中间型-b(低精力成本): 少量建仓")
+                has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
@@ -257,10 +269,14 @@ class MagAdvisor:
         # ========== 中间型-c（高性价比）==========
         middle_c_advice = []
 
-        if node_type == 'enter_phase_day1' and quality == '优质':
-            # 进场期第1天且质量优质 → 建仓
-            middle_c_advice.append("▸ 中间型-c(高性价比): 建仓")
-            has_advice = True
+        if node_type == 'enter_phase_day1':
+            # 进场期第1天 → 根据质量判断
+            if quality == '优质':
+                middle_c_advice.append("▸ 中间型-c(高性价比): 建仓")
+                has_advice = True
+            elif quality == '一般':
+                middle_c_advice.append("▸ 中间型-c(高性价比): 少量建仓")
+                has_advice = True
 
         elif node_type == 'break_200' and break_200_count >= 2 and final_percentage < 0:
             # 进场期第2次或以上爆破跌200且质量为负 → 清仓
@@ -279,10 +295,14 @@ class MagAdvisor:
         # ========== 中间型-d（a8资金）==========
         middle_d_advice = []
 
-        if node_type == 'break_0' and phase_type == '退场期' and quality == '劣质':
-            # 退场期爆破负转正且质量劣质 → 建仓
-            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
-            has_advice = True
+        if node_type == 'break_0' and phase_type == '退场期':
+            # 退场期爆破负转正 → 根据质量判断
+            if quality == '劣质':
+                middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
+                has_advice = True
+            elif quality == '一般':
+                middle_d_advice.append("▸ 中间型-d(a8资金): 少量建仓")
+                has_advice = True
 
         elif node_type == 'enter_phase_day1':
             # 进场期第1天 → 建仓完毕

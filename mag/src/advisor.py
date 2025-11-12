@@ -405,6 +405,34 @@ class MagAdvisor:
         is_dragon_leader = coin in ['ETH', 'BNB', 'SOL', 'DOGE']
         is_middle_a_target = is_us_stock or is_btc or is_dragon_leader
 
+        # 收集建议内容
+        advice_lines = []
+
+        if node_type == 'offchain_above_1000':
+            # 中间型a：建仓（仅美股/BTC/龙头币）
+            if is_middle_a_target:
+                advice_lines.append("▸ 中间型-a(美股/BTC/龙头币): 建仓")
+
+        elif node_type == 'offchain_below_1000':
+            # 中间型a：清仓（仅美股/BTC/龙头币）
+            if is_middle_a_target:
+                advice_lines.append("▸ 中间型-a(美股/BTC/龙头币): 清仓")
+
+        elif node_type == 'offchain_below_1500':
+            # 中间型d：分批止盈
+            advice_lines.extend([
+                "▸ 中间型-d（a8资金）：",
+                f"  - 场外指数：{offchain_index}",
+                "  - 【开始分批止盈】场外指数跌破1500",
+                "  - 在1500-1000区间分批减仓",
+                "  - 建议分3-5批止盈"
+            ])
+
+        # 如果没有任何建议，返回空字符串
+        if not advice_lines:
+            return ""
+
+        # 构建完整输出
         output = []
         output.append("=" * 42)
         output.append(f"币种：{coin}")
@@ -413,27 +441,7 @@ class MagAdvisor:
         output.append("-" * 42)
         output.append("分级建议：")
         output.append("")
-
-        if node_type == 'offchain_above_1000':
-            # 中间型a：建仓（仅美股/BTC/龙头币）
-            if is_middle_a_target:
-                output.append("▸ 中间型-a(美股/BTC/龙头币): 建仓")
-
-        elif node_type == 'offchain_below_1000':
-            # 中间型a：清仓（仅美股/BTC/龙头币）
-            if is_middle_a_target:
-                output.append("▸ 中间型-a(美股/BTC/龙头币): 清仓")
-
-        elif node_type == 'offchain_below_1500':
-            # 中间型d：分批止盈
-            output.extend([
-                "▸ 中间型-d（a8资金）：",
-                f"  - 场外指数：{offchain_index}",
-                "  - 【开始分批止盈】场外指数跌破1500",
-                "  - 在1500-1000区间分批减仓",
-                "  - 建议分3-5批止盈"
-            ])
-
+        output.extend(advice_lines)
         output.append("=" * 42)
         output.append("")
 

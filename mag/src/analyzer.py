@@ -88,6 +88,11 @@ class MagAnalyzer:
         # 质量评级
         quality_rating = self._get_quality_rating(final_pct)
 
+        # 计算爆破跌破200的次数（用于分级建议）
+        break_200_count = 0
+        if node_info['node_type'] == 'break_200':
+            break_200_count = self._count_break_200_since_enter(coin, date)
+
         # 构建分析结果
         result = {
             'date': date,
@@ -111,7 +116,9 @@ class MagAnalyzer:
             # 小节信息
             'section_num': section_num,
             'section_desc': section_desc,
-            'section_pct': section_pct
+            'section_pct': section_pct,
+            # 分级建议所需字段
+            'break_200_count': break_200_count  # 进场期第几次爆破跌200
         }
 
         # 保存分析结果到数据库
@@ -690,7 +697,8 @@ class MagAnalyzer:
         4. break_below_0: 爆破指数正变负
         5. offchain_above_1000: 场外指数超过1000
         6. offchain_below_1000: 场外指数跌破1000
-        7. approaching: 提示逼近
+        7. offchain_below_1500: 场外指数跌破1500
+        8. approaching: 提示逼近
         """
         phase_type = coin_data.get('phase_type')
         offchain_index = coin_data.get('offchain_index', 0)
@@ -746,7 +754,15 @@ class MagAnalyzer:
                     offchain_index, break_index
                 )
 
-        # 6. 进场期质量修正检查（按小节计数）
+            # 6. 场外指数跌破1500（从大于等于1500到小于1500）
+            if prev_offchain >= 1500 > offchain_index:
+                self.db.insert_special_node(
+                    date, coin, 'offchain_below_1500',
+                    f"{phase_type}场外指数跌破1500 - 场外指数：{offchain_index}，爆破指数：{break_index}",
+                    offchain_index, break_index
+                )
+
+        # 7. 进场期质量修正检查（按小节计数）
         if phase_type == '进场期':
             # 找到当前小节的起始日期
             section_start_date = self._find_current_section_start_date(coin, date, '进场期')
@@ -789,7 +805,7 @@ class MagAnalyzer:
                                     offchain_index, break_index
                                 )
 
-        # 7. 退场期质量修正检查（按小节计数）
+        # 8. 退场期质量修正检查（按小节计数）
         if phase_type == '退场期':
             # 找到当前小节的起始日期
             section_start_date = self._find_current_section_start_date(coin, date, '退场期')

@@ -285,8 +285,8 @@ class MagAdvisor:
             has_advice = True
 
         elif node_type == 'enter_phase_day1':
-            # 进场期第1天 → 建仓
-            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
+            # 进场期第1天 → 建仓完毕
+            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓完毕")
             has_advice = True
 
         elif node_type == 'break_200':

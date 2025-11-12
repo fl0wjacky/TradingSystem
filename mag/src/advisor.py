@@ -309,13 +309,6 @@ class MagAdvisor:
             middle_d_advice.append("▸ 中间型-d(a8资金): 建仓完毕")
             has_advice = True
 
-        elif node_type == 'break_200':
-            # 进场期爆破跌200 → 根据场外指数判断
-            if 1000 < offchain_index < 1500:
-                middle_d_advice.append("▸ 中间型-d(a8资金): 分批止盈")
-                has_advice = True
-            # 场外指数 > 1500 或 < 1000 时，不显示中间型d
-
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
             middle_d_advice.append("▸ 中间型-d(a8资金): 清仓")

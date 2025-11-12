@@ -312,7 +312,7 @@ class MagAdvisor:
         elif node_type == 'break_200':
             # 进场期爆破跌200 → 根据场外指数判断
             if 1000 < offchain_index < 1500:
-                middle_d_advice.append("▸ 中间型-d(a8资金): 止盈")
+                middle_d_advice.append("▸ 中间型-d(a8资金): 分批止盈")
                 has_advice = True
             # 场外指数 > 1500 或 < 1000 时，不显示中间型d
 
@@ -373,8 +373,8 @@ class MagAdvisor:
                 advice_lines.append("▸ 中间型-a(美股/BTC/龙头币): 清仓")
 
         elif node_type == 'offchain_below_1500':
-            # 中间型d：止盈
-            advice_lines.append("▸ 中间型-d(a8资金): 止盈")
+            # 中间型d：分批止盈
+            advice_lines.append("▸ 中间型-d(a8资金): 分批止盈")
 
         elif node_type == 'quality_warning_entry':
             # 进场期质量修正：所有性格类型减仓

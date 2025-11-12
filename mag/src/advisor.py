@@ -373,14 +373,8 @@ class MagAdvisor:
                 advice_lines.append("▸ 中间型-a(美股/BTC/龙头币): 清仓")
 
         elif node_type == 'offchain_below_1500':
-            # 中间型d：分批止盈
-            advice_lines.extend([
-                "▸ 中间型-d（a8资金）：",
-                f"  - 场外指数：{offchain_index}",
-                "  - 【开始分批止盈】场外指数跌破1500",
-                "  - 在1500-1000区间分批减仓",
-                "  - 建议分3-5批止盈"
-            ])
+            # 中间型d：止盈
+            advice_lines.append("▸ 中间型-d(a8资金): 止盈")
 
         elif node_type == 'quality_warning_entry':
             # 进场期质量修正：所有性格类型减仓

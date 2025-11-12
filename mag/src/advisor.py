@@ -340,6 +340,8 @@ class MagAdvisor:
         - offchain_above_1000: 中间型a建仓（仅美股/BTC/龙头币）
         - offchain_below_1000: 中间型a清仓（仅美股/BTC/龙头币）
         - offchain_below_1500: 中间型d分批止盈
+        - quality_warning_entry: 进场期质量修正 - 所有性格类型减仓
+        - quality_warning_exit: 退场期质量修正 - 所有性格类型减仓
         """
         coin = special_node_data.get('coin')
         date = special_node_data.get('date')
@@ -380,6 +382,32 @@ class MagAdvisor:
                 "  - 在1500-1000区间分批减仓",
                 "  - 建议分3-5批止盈"
             ])
+
+        elif node_type == 'quality_warning_entry':
+            # 进场期质量修正：所有性格类型减仓
+            advice_lines.extend([
+                "▸ 高稳健型: 减仓",
+                "▸ 高风险型: 减仓",
+                "▸ 中间型-a(美股/BTC/龙头币): 减仓" if is_middle_a_target else None,
+                "▸ 中间型-b(低精力成本): 减仓",
+                "▸ 中间型-c(高性价比): 减仓",
+                "▸ 中间型-d(a8资金): 减仓"
+            ])
+            # 移除None值
+            advice_lines = [line for line in advice_lines if line is not None]
+
+        elif node_type == 'quality_warning_exit':
+            # 退场期质量修正：所有性格类型减仓
+            advice_lines.extend([
+                "▸ 高稳健型: 减仓",
+                "▸ 高风险型: 减仓",
+                "▸ 中间型-a(美股/BTC/龙头币): 减仓" if is_middle_a_target else None,
+                "▸ 中间型-b(低精力成本): 减仓",
+                "▸ 中间型-c(高性价比): 减仓",
+                "▸ 中间型-d(a8资金): 减仓"
+            ])
+            # 移除None值
+            advice_lines = [line for line in advice_lines if line is not None]
 
         # 如果没有任何建议，返回空字符串
         if not advice_lines:

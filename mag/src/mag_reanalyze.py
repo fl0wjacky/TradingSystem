@@ -116,7 +116,7 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
             lines.append("  " + " - ".join(display_parts))
 
             # 如果是详细模式且是特殊操作节点，生成建议
-            if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500', 'quality_warning_entry', 'quality_warning_exit']:
+            if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500', 'quality_warning_entry']:
                 advice = MagAdvisor.generate_special_advice(special_node)
                 # 只有当有建议时才显示
                 if advice:
@@ -510,7 +510,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                     img_console.print(output_line)
 
                 # 如果是详细模式且是特殊操作节点，显示完整分析
-                if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500', 'quality_warning_entry', 'quality_warning_exit']:
+                if verbose and special_node['node_type'] in ['offchain_above_1000', 'offchain_below_1000', 'offchain_below_1500', 'quality_warning_entry']:
                     advice = advisor.generate_special_advice(special_node)
                     # 只有当有建议时才显示
                     if advice:

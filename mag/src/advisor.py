@@ -23,7 +23,13 @@ class MagAdvisor:
         output = []
         output.append("=" * 42)
         output.append(f"币种：{coin}")
-        output.append(f"日期：{date}")
+
+        # 判断是否显示谢林点
+        shelin_point = coin_data.get('shelin_point')
+        if shelin_point is not None and shelin_point != 0:
+            # 如果有谢林点,显示谢林点(保留整数格式)
+            output.append(f"谢林点：{int(shelin_point)}")
+
         output.append(f"当前状态：{phase_type}第{phase_days}天")
         output.append("-" * 42)
 
@@ -390,7 +396,13 @@ class MagAdvisor:
         output = []
         output.append("=" * 42)
         output.append(f"币种：{coin}")
-        output.append(f"日期：{date}")
+
+        # 判断是否显示谢林点
+        shelin_point = coin_info.get('shelin_point') if coin_info else None
+        if shelin_point is not None and shelin_point != 0:
+            # 如果有谢林点,显示谢林点(保留整数格式)
+            output.append(f"谢林点：{int(shelin_point)}")
+
         output.append(f"特殊节点：{description}")
         output.append("-" * 42)
         output.append("分级建议：")

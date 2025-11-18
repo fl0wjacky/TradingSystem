@@ -314,7 +314,8 @@ class NotionScraper:
 
     def _find_shelin(self, lines: List[str], start_idx: int) -> Optional[float]:
         """向下查找谢林点"""
-        for j in range(start_idx, min(start_idx + 10, len(lines))):
+        # 从 start_idx+1 开始搜索，跳过币种名称行本身，避免误判为"遇到下一个币种"
+        for j in range(start_idx + 1, min(start_idx + 10, len(lines))):
             search_line = lines[j].strip()
             if not search_line:
                 continue

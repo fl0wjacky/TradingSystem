@@ -73,15 +73,23 @@ class NotionScraper:
         """解析Notion页面文本，提取币种数据 - 使用灵活的状态机"""
         data_list = []
 
-        # 提取日期
-        date_match = re.search(r'(\d{1,2}\.\d{1,2})', raw_text)
-        if not date_match:
-            raise Exception("未找到日期信息")
-
-        date_str = date_match.group(1)
-        month, day = date_str.split('.')
-        current_year = datetime.now().year
-        formatted_date = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
+        # 提取日期 - 支持带年份和不带年份两种格式
+        # 格式1: 2024.11.16 (带年份)
+        # 格式2: 11.16 (不带年份，使用当前年份)
+        date_match_with_year = re.search(r'(\d{4})\.(\d{1,2})\.(\d{1,2})', raw_text)
+        if date_match_with_year:
+            year = date_match_with_year.group(1)
+            month = date_match_with_year.group(2)
+            day = date_match_with_year.group(3)
+            formatted_date = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        else:
+            date_match = re.search(r'(\d{1,2}\.\d{1,2})', raw_text)
+            if not date_match:
+                raise Exception("未找到日期信息")
+            date_str = date_match.group(1)
+            month, day = date_str.split('.')
+            current_year = datetime.now().year
+            formatted_date = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
 
         lines = raw_text.split('\n')
 

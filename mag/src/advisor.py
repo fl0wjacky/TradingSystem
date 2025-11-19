@@ -338,7 +338,7 @@ class MagAdvisor:
         处理的特殊节点：
         - offchain_above_1000: 中间型a建仓（仅美股/BTC/龙头币）
         - offchain_below_1000: 中间型a清仓（仅美股/BTC/龙头币）
-        - offchain_below_1500: 中间型d分批止盈
+        - offchain_below_1500: 中间型d分批止盈（仅进场期）
         - quality_warning_entry: 进场期质量修正 - 所有性格类型减仓
         """
         coin = special_node_data.get('coin')
@@ -372,8 +372,10 @@ class MagAdvisor:
                 advice_lines.append("▸ 中间型-a(美股/BTC/龙头币): 清仓")
 
         elif node_type == 'offchain_below_1500':
-            # 中间型d：分批止盈
-            advice_lines.append("▸ 中间型-d(a8资金): 分批止盈")
+            # 中间型d：分批止盈（仅进场期）
+            # 从 description 提取阶段类型（格式："进场期场外指数跌破1500 - ..."）
+            if description.startswith('进场期'):
+                advice_lines.append("▸ 中间型-d(a8资金): 分批止盈")
 
         elif node_type == 'quality_warning_entry':
             # 进场期质量修正：所有性格类型减仓

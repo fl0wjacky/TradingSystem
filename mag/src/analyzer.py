@@ -30,8 +30,50 @@ class MagAnalyzer:
 
         # 找到参考节点并计算场外指数差值
         reference = self._find_reference_node(coin, date, node_info['node_type'])
+
+        # 处理无参考节点的情况
         if not reference:
-            return None  # 无法找到参考节点
+            # 无法找到参考节点，但仍需保存关键节点记录
+            # 识别当前小节（无参考节点时）
+            if coin_data['phase_type'] == '进场期':
+                section_num = 1
+                section_desc = "进场期第1小节质量"
+            else:  # 退场期
+                section_num = 1
+                section_desc = "退场期第1小节质量"
+
+            # 构建无参考节点的分析结果
+            result = {
+                'date': date,
+                'coin': coin,
+                'node_type': node_info['node_type'],
+                'reference_node_date': None,
+                'reference_node_type': None,
+                'reference_offchain_index': None,
+                'current_offchain_index': coin_data['offchain_index'],
+                'change_percentage': 0,
+                'phase_correction': 0,
+                'divergence_correction': 0,
+                'divergence_details': None,
+                'break_index_correction': 0,
+                'approaching_correction': 0,
+                'final_percentage': 0,
+                'quality_rating': '无',
+                'benchmark_chain_status': '无',
+                'coin_data': coin_data,
+                'benchmark_details': None,
+                # 小节信息
+                'section_num': section_num,
+                'section_desc': section_desc,
+                'section_pct': 0,
+                # 分级建议所需字段
+                'break_200_count': 0
+            }
+
+            # 保存分析结果到数据库
+            self.db.save_analysis_result(result)
+
+            return result
 
         # 识别当前小节
         section_num, section_desc, section_pct = self._identify_section(

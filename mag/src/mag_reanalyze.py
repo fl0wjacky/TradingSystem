@@ -64,7 +64,11 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
                 result['coin']
             ]
 
-            if ref_node_type_text:
+            # 检查是否有参考节点
+            if result.get('reference_node_date') is None:
+                # 无参考节点
+                display_parts.append(f"无数据 → {node_type_text}")
+            elif ref_node_type_text:
                 display_parts.append(f"{ref_node_type_text} → {node_type_text}")
             else:
                 display_parts.append(node_type_text)
@@ -72,11 +76,11 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
             section_desc = result.get('section_desc', '')
             if section_desc:
                 display_parts.append(
-                    f"预测{section_desc}: {quality} ({result['final_percentage']:+.1f}%)"
+                    f"预测{section_desc}: {quality}" + ("" if quality == "无" else f" ({result['final_percentage']:+.1f}%)")
                 )
             else:
                 display_parts.append(
-                    f"质量: {quality} ({result['final_percentage']:+.1f}%)"
+                    f"质量: {quality}" + ("" if quality == "无" else f" ({result['final_percentage']:+.1f}%)")
                 )
 
             lines.append("  " + " - ".join(display_parts))
@@ -453,7 +457,11 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 ]
 
                 # 显示对比关系：参考节点 → 当前节点
-                if ref_node_type_text:
+                # 检查是否有参考节点
+                if result.get('reference_node_date') is None:
+                    # 无参考节点
+                    display_parts.append(f"无数据 → {node_type_text}")
+                elif ref_node_type_text:
                     display_parts.append(f"{ref_node_type_text} → {node_type_text}")
                 else:
                     display_parts.append(node_type_text)
@@ -462,11 +470,11 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 section_desc = result.get('section_desc', '')
                 if section_desc:
                     display_parts.append(
-                        f"预测{section_desc}: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                        f"预测{section_desc}: [{color}]{quality}[/{color}]" + ("" if quality == "无" else f" ({result['final_percentage']:+.1f}%)")
                     )
                 else:
                     display_parts.append(
-                        f"质量: [{color}]{quality}[/{color}] ({result['final_percentage']:+.1f}%)"
+                        f"质量: [{color}]{quality}[/{color}]" + ("" if quality == "无" else f" ({result['final_percentage']:+.1f}%)")
                     )
 
                 output_line = "  " + " - ".join(display_parts)

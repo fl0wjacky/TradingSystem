@@ -35,62 +35,79 @@ class MagAdvisor:
 
         # 对标链分析
         benchmark = analysis_result['benchmark_details']
-        benchmark_text = MagAdvisor._format_benchmark_status(benchmark, coin_data)
-        output.append(f"对标链分析：{benchmark_text}")
-
-        # 关键节点对比
-        ref_date = analysis_result['reference_node_date']
-        ref_index = analysis_result['reference_offchain_index']
-
-        # 当前节点的类型
-        current_node_type_text = MagAdvisor._get_node_type_text(analysis_result['node_type'])
-
-        # 参考节点的类型（如果有的话）
-        ref_node_type = analysis_result.get('reference_node_type', '')
-        ref_node_type_text = MagAdvisor._get_node_type_text(ref_node_type) if ref_node_type else ''
-
-        # 构建对比信息
-        ref_info = f"{ref_index:.0f} ({ref_date}"
-        if ref_node_type_text:
-            ref_info += f", {ref_node_type_text}"
-        ref_info += ")"
-
-        output.append(f"关键节点对比：{ref_info} → {current_index} ({date}, {current_node_type_text})")
-
-        # 详细计算
-        base_change = analysis_result['change_percentage']
-        phase_corr = analysis_result['phase_correction']
-        divergence_corr = analysis_result.get('divergence_correction', 0)
-        divergence_details = analysis_result.get('divergence_details', {})
-        break_corr = analysis_result.get('break_index_correction', 0)
-        approaching_corr = analysis_result.get('approaching_correction', 0)
-
-        calculation_parts = [f"基础涨幅 {base_change:+.1f}%"]
-        if phase_corr != 0:
-            calculation_parts.append(f"相变修正 {phase_corr:+.1f}%")
-
-        # 对标链背离修正（展开详情）
-        if divergence_corr != 0:
-            divergence_items = []
-            for coin_name, detail in divergence_details.items():
-                divergence_items.append(f"{coin_name}{detail['weight']:+.1f}%")
-            divergence_text = f"对标链背离({', '.join(divergence_items)})"
-            calculation_parts.append(divergence_text)
-
-        if break_corr != 0:
-            calculation_parts.append(f"爆破指数修正 {break_corr:+.1f}%")
-        if approaching_corr != 0:
-            calculation_parts.append(f"逼近修正 {approaching_corr:+.1f}%")
-
-        output.append(f"场外指数变化：{' + '.join(calculation_parts)} = {final_pct:+.1f}%")
-
-        # 显示小节信息
-        section_desc = analysis_result.get('section_desc', '')
-        if section_desc:
-            # 将描述改为"预测"形式，使用最终百分比
-            output.append(f"预测{section_desc}：{quality}（{final_pct:+.1f}%）")
+        if benchmark is not None:
+            benchmark_text = MagAdvisor._format_benchmark_status(benchmark, coin_data)
+            output.append(f"对标链分析：{benchmark_text}")
         else:
-            output.append(f"判定结果：【{quality}{phase_type}】")
+            output.append(f"对标链分析：无")
+
+        # 检查是否有参考节点
+        ref_date = analysis_result['reference_node_date']
+
+        if ref_date is None:
+            # 无参考节点的情况
+            current_node_type_text = MagAdvisor._get_node_type_text(analysis_result['node_type'])
+            output.append(f"当前状况：{current_index} ({date}, {current_node_type_text})")
+            output.append("")
+            output.append("由于参考节点缺失，无法计算质量。")
+
+            # 显示小节信息（预测第1小节质量：无）
+            section_desc = analysis_result.get('section_desc', '')
+            if section_desc:
+                output.append(f"预测{section_desc}：无")
+        else:
+            # 有参考节点的正常情况
+            ref_index = analysis_result['reference_offchain_index']
+
+            # 当前节点的类型
+            current_node_type_text = MagAdvisor._get_node_type_text(analysis_result['node_type'])
+
+            # 参考节点的类型（如果有的话）
+            ref_node_type = analysis_result.get('reference_node_type', '')
+            ref_node_type_text = MagAdvisor._get_node_type_text(ref_node_type) if ref_node_type else ''
+
+            # 构建对比信息
+            ref_info = f"{ref_index:.0f} ({ref_date}"
+            if ref_node_type_text:
+                ref_info += f", {ref_node_type_text}"
+            ref_info += ")"
+
+            output.append(f"关键节点对比：{ref_info} → {current_index} ({date}, {current_node_type_text})")
+
+            # 详细计算
+            base_change = analysis_result['change_percentage']
+            phase_corr = analysis_result['phase_correction']
+            divergence_corr = analysis_result.get('divergence_correction', 0)
+            divergence_details = analysis_result.get('divergence_details', {})
+            break_corr = analysis_result.get('break_index_correction', 0)
+            approaching_corr = analysis_result.get('approaching_correction', 0)
+
+            calculation_parts = [f"基础涨幅 {base_change:+.1f}%"]
+            if phase_corr != 0:
+                calculation_parts.append(f"相变修正 {phase_corr:+.1f}%")
+
+            # 对标链背离修正（展开详情）
+            if divergence_corr != 0:
+                divergence_items = []
+                for coin_name, detail in divergence_details.items():
+                    divergence_items.append(f"{coin_name}{detail['weight']:+.1f}%")
+                divergence_text = f"对标链背离({', '.join(divergence_items)})"
+                calculation_parts.append(divergence_text)
+
+            if break_corr != 0:
+                calculation_parts.append(f"爆破指数修正 {break_corr:+.1f}%")
+            if approaching_corr != 0:
+                calculation_parts.append(f"逼近修正 {approaching_corr:+.1f}%")
+
+            output.append(f"场外指数变化：{' + '.join(calculation_parts)} = {final_pct:+.1f}%")
+
+            # 显示小节信息
+            section_desc = analysis_result.get('section_desc', '')
+            if section_desc:
+                # 将描述改为"预测"形式，使用最终百分比
+                output.append(f"预测{section_desc}：{quality}（{final_pct:+.1f}%）")
+            else:
+                output.append(f"判定结果：【{quality}{phase_type}】")
         output.append("-" * 42)
 
         # 分级建议（只有在有建议时才显示）

@@ -431,3 +431,151 @@ class MagAdvisor:
         output.append("")
 
         return "\n".join(output)
+
+    @staticmethod
+    def get_structured_advice(analysis_result: Dict) -> Dict[str, str]:
+        """
+        根据分析结果生成结构化的操作建议（用于回测）
+
+        Returns:
+            Dict[str, str]: 每个性格类型对应的操作
+                键: 'conservative', 'aggressive', 'middle_a', 'middle_b', 'middle_c', 'middle_d'
+                值: 操作类型
+                    - 'buy_full': 全仓买入
+                    - 'buy_30': 买入30%
+                    - 'buy_20': 买入20%
+                    - 'buy_40': 买入40%
+                    - 'buy_all_remaining': 买入剩余全部
+                    - 'sell_50': 卖出50%
+                    - 'sell_all': 全部卖出
+                    - None: 不操作
+        """
+        coin_data = analysis_result['coin_data']
+        quality = analysis_result['quality_rating']
+        final_pct = analysis_result['final_percentage']
+        phase_type = coin_data['phase_type']
+        node_type = analysis_result['node_type']
+        offchain_index = analysis_result['current_offchain_index']
+        break_200_count = analysis_result.get('break_200_count', 0)
+
+        # 结果字典
+        actions = {}
+
+        # ========== 高稳健型 ==========
+        if node_type == 'enter_phase_day1':
+            if quality == '优质':
+                actions['conservative'] = 'buy_full'
+            elif quality == '一般':
+                actions['conservative'] = 'buy_30'
+        elif node_type == 'break_200' and break_200_count == 1:
+            actions['conservative'] = 'sell_all'
+        elif node_type == 'exit_phase_day1':
+            actions['conservative'] = 'sell_all'
+
+        # ========== 高风险型 ==========
+        if node_type == 'break_0' and phase_type == '退场期':
+            if quality == '劣质':
+                actions['aggressive'] = 'buy_40'
+            elif quality == '一般':
+                actions['aggressive'] = 'buy_20'
+        elif node_type == 'exit_phase_day1':
+            actions['aggressive'] = 'sell_all'
+
+        # ========== 中间型-a（美股/BTC/龙头币）==========
+        # 判断是否是美股/BTC/龙头币
+        from src.database import MagDatabase
+        db = MagDatabase()
+        coin = analysis_result['coin']
+        date = analysis_result['date']
+        coin_info = db.get_coin_data(coin, date)
+        is_middle_a_target = False
+        if coin_info:
+            is_us_stock = coin_info.get('is_us_stock', 0) == 1
+            is_btc = coin == 'BTC'
+            is_dragon_leader = coin_info.get('is_dragon_leader', 0) == 1
+            is_middle_a_target = is_us_stock or is_btc or is_dragon_leader
+
+        if is_middle_a_target:
+            if node_type == 'exit_phase_day1':
+                if offchain_index >= 1000:
+                    actions['middle_a'] = 'buy_full'
+                else:
+                    actions['middle_a'] = 'sell_all'
+
+        # ========== 中间型-b（低精力成本）==========
+        if node_type == 'enter_phase_day1':
+            if quality == '优质':
+                actions['middle_b'] = 'buy_full'
+            elif quality == '一般':
+                actions['middle_b'] = 'buy_30'
+        elif node_type == 'exit_phase_day1':
+            actions['middle_b'] = 'sell_all'
+
+        # ========== 中间型-c（高性价比）==========
+        if node_type == 'enter_phase_day1':
+            if quality == '优质':
+                actions['middle_c'] = 'buy_full'
+            elif quality == '一般':
+                actions['middle_c'] = 'buy_30'
+        elif node_type == 'break_200' and break_200_count >= 2 and final_pct < 0:
+            actions['middle_c'] = 'sell_all'
+        elif node_type == 'exit_phase_day1':
+            actions['middle_c'] = 'sell_all'
+
+        # ========== 中间型-d（a8资金）==========
+        if node_type == 'break_0' and phase_type == '退场期':
+            if quality == '劣质':
+                actions['middle_d'] = 'buy_40'
+            elif quality == '一般':
+                actions['middle_d'] = 'buy_20'
+        elif node_type == 'enter_phase_day1':
+            actions['middle_d'] = 'buy_all_remaining'
+        elif node_type == 'exit_phase_day1':
+            actions['middle_d'] = 'sell_all'
+
+        return actions
+
+    @staticmethod
+    def get_structured_special_advice(special_node_data: Dict) -> Dict[str, str]:
+        """
+        为特殊操作节点生成结构化建议（用于回测）
+
+        Returns:
+            Dict[str, str]: 每个性格类型对应的操作
+        """
+        node_type = special_node_data.get('node_type')
+        offchain_index = special_node_data.get('offchain_index', 0)
+        description = special_node_data.get('description', '')
+
+        # 判断是否是美股/BTC/龙头币
+        from src.database import MagDatabase
+        db = MagDatabase()
+        coin = special_node_data.get('coin')
+        date = special_node_data.get('date')
+        coin_info = db.get_coin_data(coin, date)
+        is_middle_a_target = False
+        if coin_info:
+            is_us_stock = coin_info.get('is_us_stock', 0) == 1
+            is_btc = coin == 'BTC'
+            is_dragon_leader = coin_info.get('is_dragon_leader', 0) == 1
+            is_middle_a_target = is_us_stock or is_btc or is_dragon_leader
+
+        actions = {}
+
+        if node_type == 'offchain_above_1000' and is_middle_a_target:
+            actions['middle_a'] = 'buy_full'
+        elif node_type == 'offchain_below_1000' and is_middle_a_target:
+            actions['middle_a'] = 'sell_all'
+        elif node_type == 'offchain_below_1500' and description.startswith('进场期'):
+            actions['middle_d'] = 'sell_50'
+        elif node_type == 'quality_warning_entry':
+            # 所有性格类型减仓
+            actions['conservative'] = 'sell_50'
+            actions['aggressive'] = 'sell_50'
+            if is_middle_a_target:
+                actions['middle_a'] = 'sell_50'
+            actions['middle_b'] = 'sell_50'
+            actions['middle_c'] = 'sell_50'
+            actions['middle_d'] = 'sell_50'
+
+        return actions

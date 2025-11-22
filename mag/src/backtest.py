@@ -119,12 +119,14 @@ class BacktestEngine:
         """获取时间范围内的所有节点"""
         import sqlite3
 
-        # 直接从 analysis_results 表获取关键节点，JOIN coin_daily_data 获取 break_index
+        # 直接从 analysis_results 表获取关键节点，JOIN coin_daily_data 获取更多字段
         with sqlite3.connect(self.db.db_path) as conn:
             key_nodes_query = """
                 SELECT
-                    a.date, a.node_type, a.current_offchain_index as offchain_index,
-                    c.break_index, a.quality_rating, a.final_percentage
+                    a.date, a.coin, a.node_type, a.current_offchain_index,
+                    c.break_index, a.quality_rating, a.final_percentage,
+                    c.phase_type, c.phase_days, c.is_us_stock, c.is_dragon_leader,
+                    c.shelin_point, a.reference_node_date
                 FROM analysis_results a
                 LEFT JOIN coin_daily_data c ON a.date = c.date AND a.coin = c.coin
                 WHERE a.coin = ? AND a.date >= ? AND a.date <= ?
@@ -147,19 +149,33 @@ class BacktestEngine:
         all_nodes = []
 
         for node in key_nodes:
-            date = node[0]
+            date, coin_name, node_type, offchain_index, break_index, quality, final_pct, \
+                phase_type, phase_days, is_us_stock, is_dragon_leader, shelin_point, ref_date = node
+
             # 获取谢林点价格
-            price = self._get_price(coin, date)
+            price = shelin_point if shelin_point else self._get_price(coin, date)
+
+            # 构建符合 MagAdvisor.get_structured_advice() 期望格式的数据
             all_nodes.append({
-                'coin': coin,
+                'coin': coin_name,
                 'date': date,
-                'node_type': node[1],
-                'offchain_index': node[2],
-                'break_index': node[3],
-                'quality_rating': node[4],
-                'final_percentage': node[5],
+                'node_type': node_type,
+                'offchain_index': offchain_index,
+                'break_index': break_index,
+                'quality_rating': quality,
+                'final_percentage': final_pct,
                 'price': price,
-                'is_key_node': True
+                'is_key_node': True,
+                # MagAdvisor 需要的字段
+                'current_offchain_index': offchain_index,
+                'reference_node_date': ref_date,
+                'coin_data': {
+                    'phase_type': phase_type,
+                    'phase_days': phase_days,
+                    'is_us_stock': is_us_stock,
+                    'is_dragon_leader': is_dragon_leader,
+                    'shelin_point': shelin_point
+                }
             })
 
         for node in special_nodes:
@@ -202,7 +218,7 @@ class BacktestEngine:
 
     def _get_action(self, node: Dict, personality: str, has_position: bool) -> Optional[str]:
         """
-        根据节点类型和性格决定操作
+        根据节点类型和性格决定操作（使用 MagAdvisor 生成建议）
 
         Returns:
             'buy_full': 全仓买入
@@ -214,114 +230,22 @@ class BacktestEngine:
             'sell_all': 全部卖出
             None: 不操作
         """
-        node_type = node['node_type']
-        offchain_index = node['offchain_index']
+        from src.advisor import MagAdvisor
 
-        # 获取质量评级（对于关键节点）
-        quality = self._get_quality(node) if node['is_key_node'] else None
+        # 对于关键节点，使用 MagAdvisor 生成结构化建议
+        if node['is_key_node']:
+            # 需要添加 break_200_count 字段
+            node['break_200_count'] = self._count_break_200_before(node['coin'], node['date'])
+            actions = MagAdvisor.get_structured_advice(node)
+            return actions.get(personality)
 
-        # 中间型-a 特殊处理
-        if personality == 'middle_a':
-            # 判断是否是美股/BTC/龙头币（这里假设都适用，实际需要从数据库查询）
-            # 场外指数 > 1000：全仓
-            if node_type == 'offchain_above_1000':
-                return 'buy_full'
-            # 场外指数 < 1000：清仓
-            elif node_type == 'offchain_below_1000':
-                return 'sell_all' if has_position else None
-            # 退场期第1天：根据场外指数判断
-            elif node_type == 'exit_phase_day1':
-                if offchain_index >= 1000:
-                    return 'buy_full'
-                else:
-                    return 'sell_all' if has_position else None
-            # 质量修正：减仓
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-            else:
-                return None
+        # 对于特殊节点，使用 MagAdvisor.get_structured_special_advice()
+        else:
+            actions = MagAdvisor.get_structured_special_advice(node)
+            return actions.get(personality)
 
-        # 高稳健型
-        elif personality == 'conservative':
-            if node_type == 'enter_phase_day1':
-                if quality == '优质':
-                    return 'buy_full'
-                elif quality == '一般':
-                    return 'buy_30'
-            elif node_type == 'break_200':
-                # 第1次爆破跌200（需要从node获取次数）
-                if self._is_first_break_200(node):
-                    return 'sell_all' if has_position else None
-            elif node_type == 'exit_phase_day1':
-                return 'sell_all' if has_position else None
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-
-        # 高风险型
-        elif personality == 'aggressive':
-            if node_type == 'break_0':
-                if quality == '劣质':
-                    return 'buy_40'
-                elif quality == '一般':
-                    return 'buy_20'
-            elif node_type == 'exit_phase_day1':
-                return 'sell_all' if has_position else None
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-
-        # 中间型-b
-        elif personality == 'middle_b':
-            if node_type == 'enter_phase_day1':
-                if quality == '优质':
-                    return 'buy_full'
-                elif quality == '一般':
-                    return 'buy_30'
-            elif node_type == 'exit_phase_day1':
-                return 'sell_all' if has_position else None
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-
-        # 中间型-c
-        elif personality == 'middle_c':
-            if node_type == 'enter_phase_day1':
-                if quality == '优质':
-                    return 'buy_full'
-                elif quality == '一般':
-                    return 'buy_30'
-            elif node_type == 'break_200':
-                # 第2次及以上 且 负值
-                if not self._is_first_break_200(node) and self._is_negative_quality(node):
-                    return 'sell_all' if has_position else None
-            elif node_type == 'exit_phase_day1':
-                return 'sell_all' if has_position else None
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-
-        # 中间型-d
-        elif personality == 'middle_d':
-            if node_type == 'break_0':
-                if quality == '劣质':
-                    return 'buy_40'
-                elif quality == '一般':
-                    return 'buy_20'
-            elif node_type == 'enter_phase_day1':
-                return 'buy_all_remaining'
-            elif node_type == 'offchain_below_1500':
-                return 'sell_50' if has_position else None
-            elif node_type == 'exit_phase_day1':
-                return 'sell_all' if has_position else None
-            elif node_type == 'quality_warning_entry':
-                return 'sell_50' if has_position else None
-
-        return None
-
-    def _get_quality(self, node: Dict) -> Optional[str]:
-        """获取节点的质量评级"""
-        # 直接从节点数据中返回（已在_get_all_nodes中查询）
-        return node.get('quality_rating')
-
-    def _is_first_break_200(self, node: Dict) -> bool:
-        """判断是否是第1次爆破跌200"""
+    def _count_break_200_before(self, coin: str, date: str) -> int:
+        """统计当前日期之前的 break_200 次数"""
         import sqlite3
 
         # 查询当前节点之前的 break_200 次数（从 analysis_results 表查询）
@@ -331,25 +255,13 @@ class BacktestEngine:
                 FROM analysis_results
                 WHERE coin = ? AND date < ? AND node_type = 'break_200'
             """
-            cursor = conn.execute(query, (node['coin'], node['date']))
+            cursor = conn.execute(query, (coin, date))
             result = cursor.fetchone()
 
             if result and result[0] is not None:
-                count = result[0]
-                # 如果之前没有 break_200，则当前是第1次
-                return count == 0
+                return result[0]
 
-        return True  # 默认认为是第1次
-
-    def _is_negative_quality(self, node: Dict) -> bool:
-        """判断质量是否为负值"""
-        # 直接从节点数据中获取 final_percentage
-        final_percentage = node.get('final_percentage')
-
-        if final_percentage is not None:
-            return final_percentage < 0
-
-        return False
+        return 0
 
     def _execute_trade(self, action: str, cash: float, position: float,
                       price: float, initial_capital: float) -> Optional[Dict]:

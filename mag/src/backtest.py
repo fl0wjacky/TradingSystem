@@ -119,13 +119,16 @@ class BacktestEngine:
         """获取时间范围内的所有节点"""
         import sqlite3
 
-        # 获取关键节点
+        # 获取关键节点和分析结果（包含质量评级）
         with sqlite3.connect(self.db.db_path) as conn:
             key_nodes_query = """
-                SELECT date, node_type, offchain_index, break_index, quality_rating, final_percentage
-                FROM key_nodes
-                WHERE coin = ? AND date >= ? AND date <= ?
-                ORDER BY date
+                SELECT
+                    k.date, k.node_type, k.offchain_index, k.break_index,
+                    a.quality_rating, a.final_percentage
+                FROM key_nodes k
+                LEFT JOIN analysis_results a ON k.date = a.date AND k.coin = a.coin
+                WHERE k.coin = ? AND k.date >= ? AND k.date <= ?
+                ORDER BY k.date
             """
             cursor = conn.execute(key_nodes_query, (coin, start_date, end_date))
             key_nodes = cursor.fetchall()

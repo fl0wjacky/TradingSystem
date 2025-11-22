@@ -38,22 +38,35 @@ def create_test_data(db: MagDatabase):
             """, (date, coin, price, 1000))  # offchain_index设为1000
         conn.commit()
 
-        # 插入关键节点
-        # 1. 进场期第1天 - 优质
+        # 插入关键节点（不包含quality_rating和final_percentage）
+        # 1. 进场期第1天
         conn.execute("""
             INSERT INTO key_nodes (
-                date, coin, node_type, offchain_index, break_index,
-                quality_rating, final_percentage
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ('2025-10-02', 'BTC', 'enter_phase_day1', 1000, 0, '优质', 6.5))
+                date, coin, node_type, offchain_index, break_index, phase_type
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, ('2025-10-02', 'BTC', 'enter_phase_day1', 1000, 0, '进场期'))
 
         # 2. 爆破跌200
         conn.execute("""
             INSERT INTO key_nodes (
-                date, coin, node_type, offchain_index, break_index,
-                quality_rating, final_percentage
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ('2025-10-08', 'BTC', 'break_200', 1000, -200, '一般', 0.0))
+                date, coin, node_type, offchain_index, break_index, phase_type
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, ('2025-10-08', 'BTC', 'break_200', 1000, -200, '进场期'))
+
+        # 插入分析结果（包含quality_rating和final_percentage）
+        # 1. 进场期第1天 - 优质
+        conn.execute("""
+            INSERT INTO analysis_results (
+                date, coin, node_type, final_percentage, quality_rating
+            ) VALUES (?, ?, ?, ?, ?)
+        """, ('2025-10-02', 'BTC', 'enter_phase_day1', 6.5, '优质'))
+
+        # 2. 爆破跌200 - 一般
+        conn.execute("""
+            INSERT INTO analysis_results (
+                date, coin, node_type, final_percentage, quality_rating
+            ) VALUES (?, ?, ?, ?, ?)
+        """, ('2025-10-08', 'BTC', 'break_200', 0.0, '一般'))
 
         conn.commit()
 
@@ -95,8 +108,6 @@ def main():
                 print(f"  {trade['date']}: {trade['action']} @ ${trade['price']:.2f}")
     else:
         print(f"\n❌ 回测失败: {result['error']}")
-
-    db.close()
 
 
 if __name__ == '__main__':

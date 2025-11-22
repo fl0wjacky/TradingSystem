@@ -101,9 +101,6 @@ def main():
     # 打印结果
     print_backtest_result(result)
 
-    # 关闭数据库
-    db.close()
-
 
 if __name__ == '__main__':
     main()

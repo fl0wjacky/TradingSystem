@@ -119,16 +119,16 @@ class BacktestEngine:
         """获取时间范围内的所有节点"""
         import sqlite3
 
-        # 获取关键节点和分析结果（包含质量评级）
+        # 直接从 analysis_results 表获取关键节点，JOIN coin_daily_data 获取 break_index
         with sqlite3.connect(self.db.db_path) as conn:
             key_nodes_query = """
                 SELECT
-                    k.date, k.node_type, k.offchain_index, k.break_index,
-                    a.quality_rating, a.final_percentage
-                FROM key_nodes k
-                LEFT JOIN analysis_results a ON k.date = a.date AND k.coin = a.coin
-                WHERE k.coin = ? AND k.date >= ? AND k.date <= ?
-                ORDER BY k.date
+                    a.date, a.node_type, a.current_offchain_index as offchain_index,
+                    c.break_index, a.quality_rating, a.final_percentage
+                FROM analysis_results a
+                LEFT JOIN coin_daily_data c ON a.date = c.date AND a.coin = c.coin
+                WHERE a.coin = ? AND a.date >= ? AND a.date <= ?
+                ORDER BY a.date
             """
             cursor = conn.execute(key_nodes_query, (coin, start_date, end_date))
             key_nodes = cursor.fetchall()
@@ -324,11 +324,11 @@ class BacktestEngine:
         """判断是否是第1次爆破跌200"""
         import sqlite3
 
-        # 查询当前节点之前的 break_200 次数
+        # 查询当前节点之前的 break_200 次数（从 analysis_results 表查询）
         with sqlite3.connect(self.db.db_path) as conn:
             query = """
                 SELECT COUNT(*)
-                FROM key_nodes
+                FROM analysis_results
                 WHERE coin = ? AND date < ? AND node_type = 'break_200'
             """
             cursor = conn.execute(query, (node['coin'], node['date']))

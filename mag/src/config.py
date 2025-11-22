@@ -136,7 +136,7 @@ class MagConfig:
 
     def __init__(self):
         # 数据库路径
-        self.db_path = Path(__file__).parent.parent / 'mag.db'
+        self.db_path = Path(__file__).parent.parent / 'mag_data.db'
 
         # 默认配置值
         self.benchmark_divergence = {

@@ -179,7 +179,7 @@ class MagAdvisor:
 
         6种性格类型：
         1. 高稳健型：进场期第1天优质建仓 → 第1次爆破跌200清仓
-        2. 高风险型：退场期爆破负转正劣质分批建仓 → 退场期第1天清仓
+        2. 高风险型：进场期第1天优质建仓/一般少量建仓 + 退场期爆破负转正劣质分批建仓 → 退场期第1天清仓
         3. 中间型-a：场外指数 > 1000 建仓，< 1000 清仓（美股/BTC/龙头币）
         4. 中间型-b：进场期第1天优质建仓 → 退场期第1天清仓（低精力成本）
         5. 中间型-c：进场期第1天优质建仓 → 第2次及以上爆破跌200负值清仓（高性价比）
@@ -223,7 +223,16 @@ class MagAdvisor:
         # ========== 高风险型 ==========
         aggressive_advice = []
 
-        if node_type == 'break_0' and phase_type == '退场期':
+        if node_type == 'enter_phase_day1':
+            # 进场期第1天 → 根据质量判断
+            if quality == '优质':
+                aggressive_advice.append("▸ 高风险型: 建仓")
+                has_advice = True
+            elif quality == '一般':
+                aggressive_advice.append("▸ 高风险型: 少量建仓")
+                has_advice = True
+
+        elif node_type == 'break_0' and phase_type == '退场期':
             # 退场期爆破负转正 → 根据质量判断
             if quality == '劣质':
                 aggressive_advice.append("▸ 高风险型: 分批建仓")
@@ -473,7 +482,12 @@ class MagAdvisor:
             actions['conservative'] = 'sell_all'
 
         # ========== 高风险型 ==========
-        if node_type == 'break_0' and phase_type == '退场期':
+        if node_type == 'enter_phase_day1':
+            if quality == '优质':
+                actions['aggressive'] = 'buy_full'
+            elif quality == '一般':
+                actions['aggressive'] = 'buy_30'
+        elif node_type == 'break_0' and phase_type == '退场期':
             if quality == '劣质':
                 actions['aggressive'] = 'buy_40'
             elif quality == '一般':

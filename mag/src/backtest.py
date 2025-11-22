@@ -73,7 +73,7 @@ class BacktestEngine:
                 action, cash, position, price, initial_capital
             )
 
-            if trade_result:
+            if trade_result and trade_result['amount'] > 0:
                 cash = trade_result['cash_after']
                 position = trade_result['position_after']
 

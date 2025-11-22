@@ -135,6 +135,9 @@ class MagConfig:
     """MAG系统修正参数配置类"""
 
     def __init__(self):
+        # 数据库路径
+        self.db_path = Path(__file__).parent.parent / 'mag.db'
+
         # 默认配置值
         self.benchmark_divergence = {
             'nasdaq': -10.0,

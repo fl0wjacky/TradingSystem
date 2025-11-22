@@ -36,21 +36,35 @@ def print_backtest_result(result: dict):
         print(f"{'日期':<12} {'节点类型':<20} {'操作':<15} {'价格':<12} {'数量':<15} {'账户价值':<15}")
         print("-"*80)
 
+        # 节点类型中文映射
+        node_type_map = {
+            'enter_phase_day1': '进场期第1天',
+            'exit_phase_day1': '退场期第1天',
+            'break_200': '爆破跌破200',
+            'break_0': '爆破负转正',
+            'offchain_above_1000': '场外指数超1000',
+            'offchain_below_1000': '场外指数跌破1000',
+            'offchain_below_1500': '场外指数跌破1500',
+            'quality_warning_entry': '进场期质量修正'
+        }
+
+        # 操作类型映射
+        action_map = {
+            'buy_full': '全仓买入',
+            'buy_30': '买入30%',
+            'buy_20': '买入20%',
+            'buy_40': '买入40%',
+            'buy_all_remaining': '买入剩余全部',
+            'sell_50': '卖出50%',
+            'sell_all': '全部卖出'
+        }
+
         for trade in result['trades']:
-            # 操作类型映射
-            action_map = {
-                'buy_full': '全仓买入',
-                'buy_30': '买入30%',
-                'buy_20': '买入20%',
-                'buy_40': '买入40%',
-                'buy_all_remaining': '买入剩余全部',
-                'sell_50': '卖出50%',
-                'sell_all': '全部卖出'
-            }
+            node_type_text = node_type_map.get(trade['node_type'], trade['node_type'])
             action_text = action_map.get(trade['action'], trade['action'])
 
             print(f"{trade['date']:<12} "
-                  f"{trade['node_type']:<20} "
+                  f"{node_type_text:<20} "
                   f"{action_text:<15} "
                   f"${trade['price']:<11,.2f} "
                   f"{trade['amount']:<15.8f} "

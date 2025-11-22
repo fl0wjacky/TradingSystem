@@ -599,24 +599,31 @@ class MagAnalyzer:
 
     def _count_break_200_since_enter(self, coin: str, current_date: str) -> int:
         """计算从最近的进场期第1天开始到current_date有多少次爆破跌200"""
+        import sqlite3
+
         # 找到最近的进场期第1天
         enter_node = self.db.find_last_phase_node(coin, '进场期', current_date)
         if not enter_node:
-            return 1
+            return 0
 
         enter_date = enter_node[0]
 
-        # 获取从enter_date到current_date之间的所有数据
-        history = self.db.get_coin_history(coin, limit=100)
+        # 查询从 enter_date 到 current_date 之间的数据
+        with sqlite3.connect(self.db.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, break_index
+                FROM coin_daily_data
+                WHERE coin = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+            """, (coin, enter_date, current_date))
+
+            records = [dict(row) for row in cursor.fetchall()]
 
         count = 0
         prev_break = None
-        for record in reversed(history):
-            if record['date'] < enter_date:
-                continue
-            if record['date'] > current_date:
-                break
-
+        for record in records:
             current_break = record.get('break_index')
             if current_break is None:
                 prev_break = current_break
@@ -632,24 +639,31 @@ class MagAnalyzer:
 
     def _count_break_0_since_exit(self, coin: str, current_date: str) -> int:
         """计算从最近的退场期第1天开始到current_date有多少次爆破负转正"""
+        import sqlite3
+
         # 找到最近的退场期第1天
         exit_node = self.db.find_last_phase_node(coin, '退场期', current_date)
         if not exit_node:
-            return 1
+            return 0
 
         exit_date = exit_node[0]
 
-        # 获取从exit_date到current_date之间的所有数据
-        history = self.db.get_coin_history(coin, limit=100)
+        # 查询从 exit_date 到 current_date 之间的数据
+        with sqlite3.connect(self.db.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date, break_index
+                FROM coin_daily_data
+                WHERE coin = ? AND date >= ? AND date <= ?
+                ORDER BY date ASC
+            """, (coin, exit_date, current_date))
+
+            records = [dict(row) for row in cursor.fetchall()]
 
         count = 0
         prev_break = None
-        for record in reversed(history):
-            if record['date'] < exit_date:
-                continue
-            if record['date'] > current_date:
-                break
-
+        for record in records:
             current_break = record.get('break_index')
             if current_break is None:
                 prev_break = current_break

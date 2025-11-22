@@ -223,16 +223,26 @@ class MagDatabase:
 
     def find_last_phase_node(self, coin: str, phase_type: str, before_date: str) -> Optional[Tuple[str, int]]:
         """查找最近一次进场期/退场期第一天的节点"""
-        history = self.get_coin_history(coin, limit=100)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
 
-        for record in history:
-            if record['date'] >= before_date:
-                continue
+            # 查询 before_date 之前的记录,按日期倒序
+            cursor.execute("""
+                SELECT date, phase_type, phase_days, offchain_index
+                FROM coin_daily_data
+                WHERE coin = ? AND date < ?
+                ORDER BY date DESC
+                LIMIT 100
+            """, (coin, before_date))
 
-            if record['phase_type'] == phase_type and record['phase_days'] == 1:
-                return (record['date'], record['offchain_index'])
+            records = [dict(row) for row in cursor.fetchall()]
 
-        return None
+            for record in records:
+                if record['phase_type'] == phase_type and record['phase_days'] == 1:
+                    return (record['date'], record['offchain_index'])
+
+            return None
 
     def _interpolate_offchain_index(self, off1: int, off2: int,
                                    break1: int, break2: int,

@@ -183,7 +183,7 @@ class MagAdvisor:
         3. 中间型-a：场外指数 > 1000 建仓，< 1000 清仓（美股/BTC/龙头币）
         4. 中间型-b：进场期第1天优质建仓 → 退场期第1天清仓（低精力成本）
         5. 中间型-c：进场期第1天优质建仓 → 第2次及以上爆破跌200负值清仓（高性价比）
-        6. 中间型-d：退场期爆破负转正劣质建仓 + 进场期第1天建仓完毕 →
+        6. 中间型-d：退场期爆破负转正劣质分批建仓 + 进场期第1天建仓完毕 →
                       爆破跌200时1500-1000止盈 → 退场期第1天清仓（a8资金）
         """
         advice = []
@@ -321,7 +321,7 @@ class MagAdvisor:
         if node_type == 'break_0' and phase_type == '退场期':
             # 退场期爆破负转正 → 根据质量判断
             if quality == '劣质':
-                middle_d_advice.append("▸ 中间型-d(a8资金): 建仓")
+                middle_d_advice.append("▸ 中间型-d(a8资金): 分批建仓")
                 has_advice = True
             elif quality == '一般':
                 middle_d_advice.append("▸ 中间型-d(a8资金): 少量建仓")

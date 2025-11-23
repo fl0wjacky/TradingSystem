@@ -15,12 +15,12 @@ def print_backtest_result(result: dict):
         return
 
     # 打印基本信息
-    print("\n" + "="*80)
+    print("\n" + "="*100)
     print(f"币种: {result['coin']}")
     print(f"回测期间: {result['start_date']} 至 {result['end_date']}")
     print(f"性格类型: {result['personality']}")
     print(f"初始资金: ${result['initial_capital']:,.2f}")
-    print("="*80)
+    print("="*100)
 
     # 打印收益情况
     print(f"\n最终资金: ${result['final_value']:,.2f}")
@@ -32,9 +32,9 @@ def print_backtest_result(result: dict):
     # 打印交易记录
     if result['trades']:
         print(f"\n共执行 {len(result['trades'])} 笔交易:")
-        print("-"*80)
-        print(f"{'日期':<12} {'节点类型':<20} {'操作':<15} {'价格':<12} {'数量':<15} {'账户价值':<15}")
-        print("-"*80)
+        print("-"*100)
+        print(f"{'日期':<12} {'节点类型':<20} {'操作':<15} {'价格':<12} {'数量':<15} {'剩余资金':<15} {'账户价值':<15}")
+        print("-"*100)
 
         # 节点类型中文映射
         node_type_map = {
@@ -68,9 +68,10 @@ def print_backtest_result(result: dict):
                   f"{action_text:<15} "
                   f"${trade['price']:<11,.2f} "
                   f"{trade['amount']:<15.8f} "
+                  f"${trade['cash_after']:<14,.2f} "
                   f"${trade['total_value']:<14,.2f}")
 
-        print("-"*80)
+        print("-"*100)
     else:
         print("\n⚠️  期间内没有执行任何交易")
 

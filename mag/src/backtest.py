@@ -281,8 +281,9 @@ class BacktestEngine:
             position += amount
 
         elif action == 'buy_30':
-            # 买入30%
-            buy_value = initial_capital * 0.3
+            # 买入30% - 基于当前账户价值
+            current_value = cash + position * price
+            buy_value = current_value * 0.3
             if buy_value > cash:
                 buy_value = cash
             amount = buy_value / price
@@ -290,8 +291,9 @@ class BacktestEngine:
             position += amount
 
         elif action == 'buy_20':
-            # 买入20%
-            buy_value = initial_capital * 0.2
+            # 买入20% - 基于当前账户价值
+            current_value = cash + position * price
+            buy_value = current_value * 0.2
             if buy_value > cash:
                 buy_value = cash
             amount = buy_value / price
@@ -299,8 +301,9 @@ class BacktestEngine:
             position += amount
 
         elif action == 'buy_40':
-            # 买入40%
-            buy_value = initial_capital * 0.4
+            # 买入40% - 基于当前账户价值
+            current_value = cash + position * price
+            buy_value = current_value * 0.4
             if buy_value > cash:
                 buy_value = cash
             amount = buy_value / price

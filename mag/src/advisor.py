@@ -337,9 +337,13 @@ class MagAdvisor:
                 has_advice = True
 
         elif node_type == 'enter_phase_day1':
-            # 进场期第1天 → 建仓完毕
-            middle_d_advice.append("▸ 中间型-d(a8资金): 建仓完毕")
-            has_advice = True
+            # 进场期第1天 → 根据质量判断
+            if quality == '优质' or quality == '劣质':
+                middle_d_advice.append("▸ 中间型-d(a8资金): 建仓完毕")
+                has_advice = True
+            elif quality == '一般':
+                middle_d_advice.append("▸ 中间型-d(a8资金): 少量建仓")
+                has_advice = True
 
         elif node_type == 'exit_phase_day1':
             # 退场期第1天 → 清仓
@@ -543,7 +547,10 @@ class MagAdvisor:
             elif quality == '一般':
                 actions['middle_d'] = 'buy_20'
         elif node_type == 'enter_phase_day1':
-            actions['middle_d'] = 'buy_all_remaining'
+            if quality == '优质' or quality == '劣质':
+                actions['middle_d'] = 'buy_all_remaining'
+            elif quality == '一般':
+                actions['middle_d'] = 'buy_30'
         elif node_type == 'exit_phase_day1':
             actions['middle_d'] = 'sell_all'
 

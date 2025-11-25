@@ -192,11 +192,13 @@ class PlaywrightScraper(BaseScraper):
                 page = browser.new_page()
 
                 try:
-                    # 访问页面，等待网络空闲（最多 180 秒）
-                    page.goto(url, wait_until='networkidle', timeout=180000)
+                    # 访问页面，等待 DOM 加载完成（不等待所有资源）
+                    # 使用 domcontentloaded 而不是 networkidle，避免在 Notion 页面上永久等待
+                    page.goto(url, wait_until='domcontentloaded', timeout=60000)
 
-                    # 额外等待 5 秒，确保动态内容完全加载
-                    page.wait_for_timeout(5000)
+                    # 等待 10 秒，让 JavaScript 渲染完成
+                    # Notion 页面需要较长的渲染时间
+                    page.wait_for_timeout(10000)
 
                     # 获取渲染后的纯文本内容
                     text = page.inner_text('body')

@@ -322,17 +322,35 @@ class NotionScraper:
 
     def _find_shelin(self, lines: List[str], start_idx: int) -> Optional[float]:
         """向下查找谢林点"""
-        # 从 start_idx+1 开始搜索，跳过币种名称行本身，避免误判为"遇到下一个币种"
+        # 使用双重边界识别，防止跨币种误读
+        seen_data_keyword = False  # 追踪是否已见过数据关键词（场外指数/爆破指数）
+
         for j in range(start_idx + 1, min(start_idx + 10, len(lines))):
             search_line = lines[j].strip()
             if not search_line:
                 continue
+
+            # 追踪数据关键词（场外指数/爆破指数）
+            if '场外指数' in search_line or '爆破指数' in search_line:
+                if seen_data_keyword:
+                    # 第2次遇到数据关键词 → 新币种的数据区，停止搜索
+                    break
+                seen_data_keyword = True
+
+            # 检查谢林点
             match = re.search(r'谢林点\s*([\d.]+)', search_line)
             if match:
                 return float(match.group(1))
-            # 如果遇到下一个币种，停止
-            if re.match(r'^[A-Za-z$]+\s+场外指数', search_line):
-                break
+
+            # 停止条件：币名行识别（只在 start_idx 之后检查）
+            if j > start_idx:
+                # 停止条件A1：英文币名（含$符号）
+                if re.match(r'^[\$]?[A-Za-z]+$', search_line):
+                    break
+                # 停止条件A2：中文币名（1-4个纯中文字符）
+                if re.match(r'^[\u4e00-\u9fa5]{1,4}$', search_line):
+                    break
+
         return None
 
     def _find_approaching(self, lines: List[str], start_idx: int) -> int:

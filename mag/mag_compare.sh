@@ -81,12 +81,14 @@ total=$((${#COINS[@]} * ${#PERSONALITIES[@]}))
 current=0
 
 for coin in "${COINS[@]}"; do
-    echo "[$coin] 重新分析数据..."
+    # 显示分析进度（用 \r 可覆盖）
+    printf "\r%-70s" "▸ 正在分析 $coin 数据..."
     ./mag_reanalyze.sh "$START_DATE" "$END_DATE" "$coin" > "$TMP_DIR/${coin}_analyze.txt" 2>&1
 
     for personality in "${PERSONALITIES[@]}"; do
         current=$((current + 1))
-        printf "\r进度: %d/%d [%s - %s]       " "$current" "$total" "$coin" "$personality"
+        # 动态更新进度（覆盖前一行）
+        printf "\r%-70s" "▸ 进度: $current/$total [$coin - $personality]"
 
         # 运行回测并保存到临时文件
         result_file="$TMP_DIR/${coin}_${personality}.txt"

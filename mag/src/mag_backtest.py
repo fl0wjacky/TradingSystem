@@ -26,6 +26,7 @@ def print_backtest_result(result: dict):
     print(f"\n最终资金: ${result['final_value']:,.2f}")
     print(f"利润: ${result['profit']:,.2f}")
     print(f"收益率: {result['profit_rate']:+.2f}%")
+    print(f"最大回撤: {result['max_drawdown']:.2f}%")
     print(f"最终现金: ${result['final_cash']:,.2f}")
     print(f"最终持仓: {result['final_position']:.8f} {result['coin']}")
 

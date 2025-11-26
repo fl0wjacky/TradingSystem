@@ -43,6 +43,10 @@ class BacktestEngine:
         # 交易记录
         trades = []
 
+        # 最大回撤追踪
+        peak_value = initial_capital  # 资金峰值
+        max_drawdown = 0.0  # 最大回撤百分比
+
         # 获取所有节点（关键节点 + 特殊节点）
         nodes = self._get_all_nodes(coin, start_date, end_date)
 
@@ -77,6 +81,18 @@ class BacktestEngine:
                 cash = trade_result['cash_after']
                 position = trade_result['position_after']
 
+                # 计算当前总资产
+                current_value = cash + position * price
+
+                # 更新峰值和最大回撤
+                if current_value > peak_value:
+                    peak_value = current_value
+                else:
+                    # 计算当前回撤
+                    drawdown = (current_value - peak_value) / peak_value * 100
+                    if drawdown < max_drawdown:
+                        max_drawdown = drawdown
+
                 trades.append({
                     'date': date,
                     'node_type': node_type,
@@ -87,7 +103,7 @@ class BacktestEngine:
                     'position_before': trade_result['position_before'],
                     'cash_after': trade_result['cash_after'],
                     'position_after': trade_result['position_after'],
-                    'total_value': cash + position * price
+                    'total_value': current_value
                 })
 
         # 计算最终收益
@@ -110,6 +126,7 @@ class BacktestEngine:
             'final_value': final_value,
             'profit': profit,
             'profit_rate': profit_rate,
+            'max_drawdown': max_drawdown,  # 最大回撤（负数百分比）
             'final_cash': cash,
             'final_position': position,
             'trades': trades

@@ -68,10 +68,12 @@ get_index() {
 }
 
 # 使用普通数组存储结果（兼容 bash 3.x）
-results=()
+results=()  # 存储收益率
+drawdowns=()  # 存储最大回撤
 total_results=$((${#COINS[@]} * ${#PERSONALITIES[@]}))
 for ((i=0; i<total_results; i++)); do
     results+=("")
+    drawdowns+=("")
 done
 
 # 运行所有回测
@@ -90,25 +92,24 @@ for coin in "${COINS[@]}"; do
         result_file="$TMP_DIR/${coin}_${personality}.txt"
         ./mag_backtest.sh "$coin" "$START_DATE" "$END_DATE" "$personality" > "$result_file" 2>&1
 
-        # 提取收益率（从文件中读取）
+        # 提取收益率和最大回撤（从文件中读取）
         profit_rate=$(grep "收益率:" "$result_file" | head -1 | awk '{print $2}')
+        max_drawdown=$(grep "最大回撤:" "$result_file" | head -1 | awk '{print $2}')
 
         # 存储结果
         idx=$(get_index "$coin" "$personality")
         results[$idx]="$profit_rate"
+        drawdowns[$idx]="$max_drawdown"
 
         # 调试输出（可选）
-        # echo "DEBUG: $coin-$personality -> idx=$idx, rate=$profit_rate" >> "$TMP_DIR/debug.log"
+        # echo "DEBUG: $coin-$personality -> idx=$idx, rate=$profit_rate, dd=$max_drawdown" >> "$TMP_DIR/debug.log"
     done
 done
 
 echo ""
 echo ""
 
-# 清理临时目录
-rm -rf "$TMP_DIR"
-
-# 生成表格
+# 生成收益率表格
 echo "======================================================================================================"
 echo "回测结果汇总表 (收益率 %)"
 echo "======================================================================================================"
@@ -162,30 +163,97 @@ done
 
 echo "======================================================================================================"
 echo ""
+echo ""
 
-# 计算每种性格的平均收益率
-echo "各策略平均收益率:"
+# 生成最大回撤表格
+echo "======================================================================================================"
+echo "最大回撤汇总表 (%)"
+echo "======================================================================================================"
+echo ""
+
+# 表头
+printf "%-10s" "币种"
+for personality in "${PERSONALITIES[@]}"; do
+    case $personality in
+        conservative) printf "%-17s" "高稳健型" ;;
+        aggressive)   printf "%-17s" "高风险型" ;;
+        middle_a)     printf "%-17s" "中间型-a" ;;
+        middle_b)     printf "%-17s" "中间型-b" ;;
+        middle_c)     printf "%-17s" "中间型-c" ;;
+        middle_d)     printf "%-17s" "中间型-d" ;;
+    esac
+done
+echo ""
+echo "-------------------------------------------------------------------------------------------------------"
+
+# 表格内容
+for coin in "${COINS[@]}"; do
+    printf "%-10s" "$coin"
+
+    for personality in "${PERSONALITIES[@]}"; do
+        idx=$(get_index "$coin" "$personality")
+        max_drawdown="${drawdowns[$idx]}"
+
+        # 格式化回撤并着色（回撤都是负数，越小（绝对值越大）越差）
+        if [[ -n "$max_drawdown" && "$max_drawdown" != "" ]]; then
+            # 移除 % 号
+            dd_value="${max_drawdown//%/}"
+
+            # 回撤着色：绝对值越大越红
+            dd_abs=$(awk "BEGIN {print ($dd_value < 0 ? -$dd_value : $dd_value)}")
+            if (( $(awk "BEGIN {print ($dd_abs > 15)}") )); then
+                # 回撤超过15% - 红色
+                printf "${RED}%-17s${NC}" "$max_drawdown"
+            elif (( $(awk "BEGIN {print ($dd_abs > 10)}") )); then
+                # 回撤10-15% - 黄色
+                printf "${YELLOW}%-17s${NC}" "$max_drawdown"
+            else
+                # 回撤小于10% - 绿色
+                printf "${GREEN}%-17s${NC}" "$max_drawdown"
+            fi
+        else
+            printf "%-17s" "N/A"
+        fi
+    done
+    echo ""
+done
+
+echo "======================================================================================================"
+echo ""
+
+# 计算每种性格的统计数据
+echo "各策略统计:"
 echo "------------------------------------------------------------------------------------------------------"
 
 for personality in "${PERSONALITIES[@]}"; do
     total_rate=0
-    count=0
+    total_dd=0
+    count_rate=0
+    count_dd=0
 
     for coin in "${COINS[@]}"; do
         idx=$(get_index "$coin" "$personality")
         profit_rate="${results[$idx]}"
+        max_drawdown="${drawdowns[$idx]}"
 
+        # 统计收益率
         if [[ -n "$profit_rate" && "$profit_rate" != "" ]]; then
-            # 移除 % 号和 + 号
             rate_value="${profit_rate//[%+]/}"
-            # 使用 awk 进行浮点运算（兼容性更好）
             total_rate=$(awk "BEGIN {print $total_rate + $rate_value}")
-            count=$((count + 1))
+            count_rate=$((count_rate + 1))
+        fi
+
+        # 统计回撤
+        if [[ -n "$max_drawdown" && "$max_drawdown" != "" ]]; then
+            dd_value="${max_drawdown//%/}"
+            total_dd=$(awk "BEGIN {print $total_dd + $dd_value}")
+            count_dd=$((count_dd + 1))
         fi
     done
 
-    if [[ $count -gt 0 ]]; then
-        avg_rate=$(awk "BEGIN {printf \"%.2f\", $total_rate / $count}")
+    if [[ $count_rate -gt 0 && $count_dd -gt 0 ]]; then
+        avg_rate=$(awk "BEGIN {printf \"%.2f\", $total_rate / $count_rate}")
+        avg_dd=$(awk "BEGIN {printf \"%.2f\", $total_dd / $count_dd}")
 
         # 格式化输出
         case $personality in
@@ -197,15 +265,30 @@ for personality in "${PERSONALITIES[@]}"; do
             middle_d)     label="中间型-d" ;;
         esac
 
-        # 着色
+        # 着色收益率
         if [[ "$avg_rate" =~ ^- ]]; then
-            printf "  %-15s ${RED}%+.2f%%${NC}\n" "$label" "$avg_rate"
+            rate_colored="${RED}%+.2f%%${NC}"
         elif [[ "$avg_rate" == "0.00" || "$avg_rate" == "-0.00" ]]; then
-            printf "  %-15s ${YELLOW}%+.2f%%${NC}\n" "$label" "$avg_rate"
+            rate_colored="${YELLOW}%+.2f%%${NC}"
         else
-            printf "  %-15s ${GREEN}%+.2f%%${NC}\n" "$label" "$avg_rate"
+            rate_colored="${GREEN}%+.2f%%${NC}"
         fi
+
+        # 着色回撤
+        dd_abs=$(awk "BEGIN {print ($avg_dd < 0 ? -$avg_dd : $avg_dd)}")
+        if (( $(awk "BEGIN {print ($dd_abs > 15)}") )); then
+            dd_colored="${RED}%.2f%%${NC}"
+        elif (( $(awk "BEGIN {print ($dd_abs > 10)}") )); then
+            dd_colored="${YELLOW}%.2f%%${NC}"
+        else
+            dd_colored="${GREEN}%.2f%%${NC}"
+        fi
+
+        printf "  %-15s 平均收益: $rate_colored    平均回撤: $dd_colored\n" "$label" "$avg_rate" "$avg_dd"
     fi
 done
 
 echo "======================================================================================================"
+
+# 清理临时目录
+rm -rf "$TMP_DIR"

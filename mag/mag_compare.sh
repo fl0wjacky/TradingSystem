@@ -199,8 +199,8 @@ for coin in "${COINS[@]}"; do
             # 移除 % 号
             dd_value="${max_drawdown//%/}"
 
-            # 回撤着色：绝对值越大越红
-            dd_abs=$(awk "BEGIN {print ($dd_value < 0 ? -$dd_value : $dd_value)}")
+            # 计算绝对值（避免 awk 双重负号语法错误）
+            dd_abs=$(awk "BEGIN {v=$dd_value; print (v < 0 ? -v : v)}")
             if (( $(awk "BEGIN {print ($dd_abs > 15)}") )); then
                 # 回撤超过15% - 红色
                 printf "${RED}%-17s${NC}" "$max_drawdown"
@@ -274,8 +274,8 @@ for personality in "${PERSONALITIES[@]}"; do
             rate_colored="${GREEN}%+.2f%%${NC}"
         fi
 
-        # 着色回撤
-        dd_abs=$(awk "BEGIN {print ($avg_dd < 0 ? -$avg_dd : $avg_dd)}")
+        # 着色回撤（避免 awk 双重负号语法错误）
+        dd_abs=$(awk "BEGIN {v=$avg_dd; print (v < 0 ? -v : v)}")
         if (( $(awk "BEGIN {print ($dd_abs > 15)}") )); then
             dd_colored="${RED}%.2f%%${NC}"
         elif (( $(awk "BEGIN {print ($dd_abs > 10)}") )); then

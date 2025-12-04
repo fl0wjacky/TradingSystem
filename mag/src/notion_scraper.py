@@ -168,6 +168,37 @@ class NotionScraper:
                 in_us_stock_section=in_us_stock_section
             )
 
+        # === 格式1.5: 币名 + 场外指数（无进退场期，需向下查找）===
+        # 美股纳指 OTC 场外指数859
+        # 场外进场期第7天
+        # 爆破指数206
+        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)$', line)
+        if match1_5:
+            # 向下查找进退场期和爆破指数
+            phase_info = self._find_phase_info(lines, start_idx + 1)
+            if phase_info:
+                # 查找爆破指数
+                break_index = None
+                for j in range(start_idx + 1, min(start_idx + 5, len(lines))):
+                    next_line = lines[j].strip()
+                    break_match = re.match(r'爆破(?:指数)?\s*(-?\d+)', next_line)
+                    if break_match:
+                        break_index = int(break_match.group(1))
+                        break
+
+                if break_index is not None:
+                    return self._build_coin_data(
+                        coin_name=match1_5.group(1),
+                        offchain_index=int(match1_5.group(2)),
+                        break_index=break_index,
+                        phase_type=phase_info['phase_type'],
+                        phase_days=phase_info['phase_days'],
+                        shelin_point=self._find_shelin(lines, start_idx),
+                        is_approaching=self._find_approaching(lines, start_idx),
+                        date=date,
+                        in_us_stock_section=in_us_stock_section
+                    )
+
         # === 格式2: 紧凑格式（爆破指数在同一行）===
         # hood 场外指数1089爆破114
         # 布伦特原油 场外指数798爆破指数-25

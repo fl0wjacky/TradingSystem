@@ -20,6 +20,65 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
+def _build_offchain_index_map(all_data: list) -> dict:
+    """
+    从原始数据中构建币种到场外指数的映射
+
+    Args:
+        all_data: 原始币种数据列表
+
+    Returns:
+        dict: {(date, coin): offchain_index}
+    """
+    offchain_map = {}
+    for record in all_data:
+        key = (record['date'], record['coin'])
+        offchain_map[key] = record.get('offchain_index', 0)
+    return offchain_map
+
+
+def _get_coin_sort_key(node: dict, offchain_index_map: dict) -> tuple:
+    """
+    生成币种排序键
+
+    排序规则：
+    1. 美股区：按字母顺序
+    2. 龙头币：固定顺序 (BTC → ETH → BNB → SOL → DOGE)
+    3. 山寨币：按场外指数从高到低
+
+    Args:
+        node: 节点数据
+        offchain_index_map: 场外指数映射 {(date, coin): offchain_index}
+
+    Returns:
+        tuple: (分类优先级, 组内排序键)
+    """
+    coin = node['coin']
+    date = node['date']
+
+    # 定义美股列表
+    us_stocks = ['AAPL', 'CIRCLE', 'COIN', 'GOLD', 'GOOG', 'HOOD',
+                 'MSFT', 'NASDAQ', 'NVDA', 'OIL', 'TSLA', '地产']
+
+    # 定义龙头币固定顺序
+    dragon_leaders = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE']
+
+    # 分类1: 美股区（按字母顺序）
+    if coin in us_stocks:
+        return (1, coin)  # 美股优先级1，按币名字母排序
+
+    # 分类2: 龙头币（固定顺序）
+    if coin in dragon_leaders:
+        return (2, dragon_leaders.index(coin))  # 龙头优先级2，按列表位置排序
+
+    # 分类3: 山寨币（按场外指数降序）
+    # 从映射中获取场外指数
+    offchain_index = offchain_index_map.get((date, coin), 0)
+
+    # 山寨币优先级3，场外指数越高越靠前（用负数实现降序）
+    return (3, -offchain_index if offchain_index else 999999, coin)
+
+
 def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbose: bool = False) -> str:
     """
     生成纯文本格式的节点分析输出
@@ -246,8 +305,11 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
             'data': node
         })
 
-    # 按日期和币种排序
-    all_nodes.sort(key=lambda x: (x['date'], x['coin']))
+    # 构建场外指数映射（用于山寨币排序）
+    offchain_index_map = _build_offchain_index_map(all_data)
+
+    # 按日期和币种排序（新规则：美股 → 龙头币 → 山寨币）
+    all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, offchain_index_map)))
 
     # 生成纯文本输出（总是生成）
     txt_output = _generate_text_output(start_date, end_date, all_nodes, verbose)
@@ -427,8 +489,11 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 'data': node
             })
 
-        # 按日期和币种排序
-        all_nodes.sort(key=lambda x: (x['date'], x['coin']))
+        # 构建场外指数映射（用于山寨币排序）
+        offchain_index_map = _build_offchain_index_map(all_data)
+
+        # 按日期和币种排序（新规则：美股 → 龙头币 → 山寨币）
+        all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, offchain_index_map)))
 
         # 显示所有节点
         for i, node in enumerate(all_nodes, 1):

@@ -22,7 +22,7 @@ console = Console()
 class NotionScraper:
     def __init__(self, url: str):
         self.url = url
-        self.dragon_leaders = ['ETH', 'BNB', 'SOL', 'DOGE']  # 默认龙头币列表
+        self.dragon_leaders = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE']  # 默认龙头币列表
 
     def fetch_data(self) -> str:
         """

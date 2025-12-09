@@ -20,26 +20,30 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
-def _build_offchain_index_map(all_data: list) -> dict:
+def _build_coin_classification_map(all_data: list) -> dict:
     """
-    从原始数据中构建币种到场外指数的映射
+    从原始数据中构建币种分类映射
 
     Args:
         all_data: 原始币种数据列表
 
     Returns:
-        dict: {(date, coin): offchain_index}
+        dict: {(date, coin): {'is_us_stock': int, 'is_dragon_leader': int, 'offchain_index': int}}
     """
-    offchain_map = {}
+    classification_map = {}
     for record in all_data:
         key = (record['date'], record['coin'])
-        offchain_map[key] = record.get('offchain_index', 0)
-    return offchain_map
+        classification_map[key] = {
+            'is_us_stock': record.get('is_us_stock', 0),
+            'is_dragon_leader': record.get('is_dragon_leader', 0),
+            'offchain_index': record.get('offchain_index', 0)
+        }
+    return classification_map
 
 
-def _get_coin_sort_key(node: dict, offchain_index_map: dict) -> tuple:
+def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     """
-    生成币种排序键
+    生成币种排序键（使用数据库字段）
 
     排序规则：
     1. 美股区：按字母顺序
@@ -48,7 +52,7 @@ def _get_coin_sort_key(node: dict, offchain_index_map: dict) -> tuple:
 
     Args:
         node: 节点数据
-        offchain_index_map: 场外指数映射 {(date, coin): offchain_index}
+        classification_map: 币种分类映射 {(date, coin): {'is_us_stock', 'is_dragon_leader', 'offchain_index'}}
 
     Returns:
         tuple: (分类优先级, 组内排序键)
@@ -56,25 +60,28 @@ def _get_coin_sort_key(node: dict, offchain_index_map: dict) -> tuple:
     coin = node['coin']
     date = node['date']
 
-    # 定义美股列表
-    us_stocks = ['AAPL', 'CIRCLE', 'COIN', 'GOLD', 'GOOG', 'HOOD',
-                 'MSFT', 'NASDAQ', 'NVDA', 'OIL', 'TSLA', '地产']
+    # 从映射中获取分类信息
+    classification = classification_map.get((date, coin), {})
+    is_us_stock = classification.get('is_us_stock', 0)
+    is_dragon_leader = classification.get('is_dragon_leader', 0)
+    offchain_index = classification.get('offchain_index', 0)
 
-    # 定义龙头币固定顺序
-    dragon_leaders = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE']
+    # 龙头币固定顺序（用于排序）
+    dragon_leaders_order = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE']
 
     # 分类1: 美股区（按字母顺序）
-    if coin in us_stocks:
+    if is_us_stock:
         return (1, coin)  # 美股优先级1，按币名字母排序
 
     # 分类2: 龙头币（固定顺序）
-    if coin in dragon_leaders:
-        return (2, dragon_leaders.index(coin))  # 龙头优先级2，按列表位置排序
+    if is_dragon_leader:
+        # 如果在固定列表中，使用列表位置；否则放在最后
+        if coin in dragon_leaders_order:
+            return (2, dragon_leaders_order.index(coin))
+        else:
+            return (2, 999, coin)  # 未知龙头币放在最后
 
     # 分类3: 山寨币（按场外指数降序）
-    # 从映射中获取场外指数
-    offchain_index = offchain_index_map.get((date, coin), 0)
-
     # 山寨币优先级3，场外指数越高越靠前（用负数实现降序）
     return (3, -offchain_index if offchain_index else 999999, coin)
 
@@ -305,11 +312,11 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
             'data': node
         })
 
-    # 构建场外指数映射（用于山寨币排序）
-    offchain_index_map = _build_offchain_index_map(all_data)
+    # 构建币种分类映射（用于排序）
+    classification_map = _build_coin_classification_map(all_data)
 
     # 按日期和币种排序（新规则：美股 → 龙头币 → 山寨币）
-    all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, offchain_index_map)))
+    all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, classification_map)))
 
     # 生成纯文本输出（总是生成）
     txt_output = _generate_text_output(start_date, end_date, all_nodes, verbose)
@@ -489,11 +496,11 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                 'data': node
             })
 
-        # 构建场外指数映射（用于山寨币排序）
-        offchain_index_map = _build_offchain_index_map(all_data)
+        # 构建币种分类映射（用于排序）
+        classification_map = _build_coin_classification_map(all_data)
 
         # 按日期和币种排序（新规则：美股 → 龙头币 → 山寨币）
-        all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, offchain_index_map)))
+        all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, classification_map)))
 
         # 显示所有节点
         for i, node in enumerate(all_nodes, 1):

@@ -47,8 +47,9 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
 
     排序规则：
     1. 美股区：按场外指数从高到低
-    2. 龙头币：按场外指数从高到低
-    3. 山寨币：按场外指数从高到低
+    2. BTC：对标基准（单独分类）
+    3. 龙头币：按场外指数从高到低
+    4. 山寨币：按场外指数从高到低
 
     Args:
         node: 节点数据
@@ -70,12 +71,16 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     if is_us_stock:
         return (1, -offchain_index if offchain_index else 999999, coin)
 
-    # 分类2: 龙头币（按场外指数降序）
-    if is_dragon_leader:
+    # 分类2: BTC（对标基准，单独分类）
+    if coin == 'BTC':
         return (2, -offchain_index if offchain_index else 999999, coin)
 
-    # 分类3: 山寨币（按场外指数降序）
-    return (3, -offchain_index if offchain_index else 999999, coin)
+    # 分类3: 龙头币（按场外指数降序）
+    if is_dragon_leader:
+        return (3, -offchain_index if offchain_index else 999999, coin)
+
+    # 分类4: 山寨币（按场外指数降序）
+    return (4, -offchain_index if offchain_index else 999999, coin)
 
 
 def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbose: bool = False) -> str:

@@ -46,8 +46,8 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     生成币种排序键（使用数据库字段）
 
     排序规则：
-    1. 美股区：按字母顺序
-    2. 龙头币：固定顺序 (BTC → ETH → BNB → SOL → DOGE)
+    1. 美股区：按场外指数从高到低
+    2. 龙头币：按场外指数从高到低
     3. 山寨币：按场外指数从高到低
 
     Args:
@@ -55,7 +55,7 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
         classification_map: 币种分类映射 {(date, coin): {'is_us_stock', 'is_dragon_leader', 'offchain_index'}}
 
     Returns:
-        tuple: (分类优先级, 组内排序键)
+        tuple: (分类优先级, 场外指数降序, 币名)
     """
     coin = node['coin']
     date = node['date']
@@ -66,23 +66,15 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     is_dragon_leader = classification.get('is_dragon_leader', 0)
     offchain_index = classification.get('offchain_index', 0)
 
-    # 龙头币固定顺序（用于排序）
-    dragon_leaders_order = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE']
-
-    # 分类1: 美股区（按字母顺序）
+    # 分类1: 美股区（按场外指数降序）
     if is_us_stock:
-        return (1, coin)  # 美股优先级1，按币名字母排序
+        return (1, -offchain_index if offchain_index else 999999, coin)
 
-    # 分类2: 龙头币（固定顺序）
+    # 分类2: 龙头币（按场外指数降序）
     if is_dragon_leader:
-        # 如果在固定列表中，使用列表位置；否则放在最后
-        if coin in dragon_leaders_order:
-            return (2, dragon_leaders_order.index(coin))
-        else:
-            return (2, 999, coin)  # 未知龙头币放在最后
+        return (2, -offchain_index if offchain_index else 999999, coin)
 
     # 分类3: 山寨币（按场外指数降序）
-    # 山寨币优先级3，场外指数越高越靠前（用负数实现降序）
     return (3, -offchain_index if offchain_index else 999999, coin)
 
 

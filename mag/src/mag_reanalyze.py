@@ -28,7 +28,7 @@ def _build_coin_classification_map(all_data: list) -> dict:
         all_data: 原始币种数据列表
 
     Returns:
-        dict: {(date, coin): {'is_us_stock': int, 'is_dragon_leader': int, 'offchain_index': int}}
+        dict: {(date, coin): {'is_us_stock': int, 'is_dragon_leader': int, 'is_cn_stock': int, 'offchain_index': int}}
     """
     classification_map = {}
     for record in all_data:
@@ -36,6 +36,7 @@ def _build_coin_classification_map(all_data: list) -> dict:
         classification_map[key] = {
             'is_us_stock': record.get('is_us_stock', 0),
             'is_dragon_leader': record.get('is_dragon_leader', 0),
+            'is_cn_stock': record.get('is_cn_stock', 0),
             'offchain_index': record.get('offchain_index', 0)
         }
     return classification_map
@@ -50,10 +51,11 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     2. BTC：对标基准（单独分类）
     3. 龙头币：按场外指数从高到低
     4. 山寨币：按场外指数从高到低
+    5. 国内A股区：按场外指数从高到低
 
     Args:
         node: 节点数据
-        classification_map: 币种分类映射 {(date, coin): {'is_us_stock', 'is_dragon_leader', 'offchain_index'}}
+        classification_map: 币种分类映射 {(date, coin): {'is_us_stock', 'is_dragon_leader', 'is_cn_stock', 'offchain_index'}}
 
     Returns:
         tuple: (分类优先级, 场外指数降序, 币名)
@@ -65,6 +67,7 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     classification = classification_map.get((date, coin), {})
     is_us_stock = classification.get('is_us_stock', 0)
     is_dragon_leader = classification.get('is_dragon_leader', 0)
+    is_cn_stock = classification.get('is_cn_stock', 0)
     offchain_index = classification.get('offchain_index', 0)
 
     # 分类1: 美股区（按场外指数降序）
@@ -78,6 +81,10 @@ def _get_coin_sort_key(node: dict, classification_map: dict) -> tuple:
     # 分类3: 龙头币（按场外指数降序）
     if is_dragon_leader:
         return (3, -offchain_index if offchain_index else 999999, coin)
+
+    # 分类5: 国内A股区（按场外指数降序）
+    if is_cn_stock:
+        return (5, -offchain_index if offchain_index else 999999, coin)
 
     # 分类4: 山寨币（按场外指数降序）
     return (4, -offchain_index if offchain_index else 999999, coin)

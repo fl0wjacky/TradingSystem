@@ -97,8 +97,8 @@ class MagDatabase:
             cursor.execute("""
                 INSERT OR REPLACE INTO coin_daily_data
                 (date, coin, phase_type, phase_days, offchain_index, break_index,
-                 shelin_point, is_dragon_leader, is_us_stock, is_approaching)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 shelin_point, is_dragon_leader, is_us_stock, is_cn_stock, is_approaching)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data['date'],
                 data['coin'],
@@ -109,6 +109,7 @@ class MagDatabase:
                 data.get('shelin_point'),
                 data.get('is_dragon_leader', 0),
                 data.get('is_us_stock', 0),
+                data.get('is_cn_stock', 0),
                 data.get('is_approaching', 0)
             ))
             conn.commit()

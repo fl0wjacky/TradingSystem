@@ -355,8 +355,8 @@ class MagAnalyzer:
         """
         benchmark_status = {}
 
-        # 如果是美股，不需要检查对标链
-        if coin_data.get('is_us_stock'):
+        # 如果是美股或国内A股，不需要检查对标链
+        if coin_data.get('is_us_stock') or coin_data.get('is_cn_stock'):
             return benchmark_status
 
         # 获取美股数据
@@ -411,6 +411,10 @@ class MagAnalyzer:
         current_phase = coin_data.get('phase_type')
         total_correction = 0
         divergence_details = {}
+
+        # 国内A股不应用对标链背离修正（和美股平级）
+        if coin_data.get('is_cn_stock'):
+            return (0, {})
 
         # 从配置读取龙头币影响力权重
         dragon_weights = self.config.benchmark_divergence['dragon_leaders']
@@ -493,8 +497,8 @@ class MagAnalyzer:
         if not coin_data:
             return False
 
-        # BTC和美股始终通过
-        if coin == 'BTC' or coin_data.get('is_us_stock'):
+        # BTC、美股和国内A股始终通过（它们和美股平级，不需要对标）
+        if coin == 'BTC' or coin_data.get('is_us_stock') or coin_data.get('is_cn_stock'):
             return True
 
         # 龙头币只需检查美股和BTC

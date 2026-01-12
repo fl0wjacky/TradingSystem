@@ -96,26 +96,36 @@ class NotionScraper:
         # 状态机解析
         i = 0
         in_us_stock_section = False  # 是否在美股区
+        in_cn_stock_section = False  # 是否在国内A股区
 
         while i < len(lines):
             line = lines[i].strip()
             i += 1
 
-            # 检测美股区标志
-            if '大宗$美股区' in line or '大宗美股区' in line:
+            # 检测区域标志（复合标记同时开启多个区域）
+            if '大宗$美股区' in line or '大宗美股区' in line or '美股区' in line:
                 in_us_stock_section = True
+                # 如果同时包含"国内"，也开启国内A股区
+                if '$国内' in line or '国内' in line:
+                    in_cn_stock_section = True
                 continue
 
-            # 检测其他区域标志，退出美股区
-            if (line.startswith('大宗') or line.startswith('※')) and '美股' not in line:
+            # 检测国内A股区标志
+            if '$国内' in line or '国内A股' in line:
+                in_cn_stock_section = True
+                continue
+
+            # 检测其他区域标志，退出美股区和国内A股区
+            if (line.startswith('大宗') or line.startswith('※')) and '美股' not in line and '国内' not in line:
                 in_us_stock_section = False
+                in_cn_stock_section = False
 
             # 跳过空行和分隔符
             if not line or line.startswith('※') or line.startswith('♤') or line.startswith('$$$') or line.startswith('&'):
                 continue
 
             # 尝试提取币种信息 - 多种格式兼容
-            coin_data = self._try_parse_coin_block(lines, i - 1, formatted_date, in_us_stock_section)
+            coin_data = self._try_parse_coin_block(lines, i - 1, formatted_date, in_us_stock_section, in_cn_stock_section)
             if coin_data:
                 data_list.append(coin_data)
 
@@ -124,7 +134,7 @@ class NotionScraper:
 
         return data_list
 
-    def _try_parse_coin_block(self, lines: List[str], start_idx: int, date: str, in_us_stock_section: bool = False) -> Optional[Dict]:
+    def _try_parse_coin_block(self, lines: List[str], start_idx: int, date: str, in_us_stock_section: bool = False, in_cn_stock_section: bool = False) -> Optional[Dict]:
         """
         尝试从指定行开始解析一个币种数据块
         支持多种格式变体
@@ -165,7 +175,8 @@ class NotionScraper:
                 lines=lines,
                 start_idx=start_idx,
                 date=date,
-                in_us_stock_section=in_us_stock_section
+                in_us_stock_section=in_us_stock_section,
+                in_cn_stock_section=in_cn_stock_section
             )
 
         # === 格式1.5: 币名 + 场外指数（无进退场期，需向下查找）===
@@ -196,7 +207,8 @@ class NotionScraper:
                         shelin_point=self._find_shelin(lines, start_idx),
                         is_approaching=self._find_approaching(lines, start_idx),
                         date=date,
-                        in_us_stock_section=in_us_stock_section
+                        in_us_stock_section=in_us_stock_section,
+                        in_cn_stock_section=in_cn_stock_section
                     )
 
         # === 格式2: 紧凑格式（爆破指数在同一行）===
@@ -319,7 +331,7 @@ class NotionScraper:
 
     def _extract_coin_data(self, coin_name: str, offchain_index: int, phase_type: str,
                           phase_days: int, lines: List[str], start_idx: int, date: str,
-                          in_us_stock_section: bool = False) -> Dict:
+                          in_us_stock_section: bool = False, in_cn_stock_section: bool = False) -> Dict:
         """从标准格式中提取完整币种数据"""
         break_index = self._find_break_index(lines, start_idx + 1)
         shelin_point = self._find_shelin(lines, start_idx)
@@ -334,7 +346,8 @@ class NotionScraper:
             shelin_point=shelin_point,
             is_approaching=is_approaching,
             date=date,
-            in_us_stock_section=in_us_stock_section
+            in_us_stock_section=in_us_stock_section,
+            in_cn_stock_section=in_cn_stock_section
         )
 
     def _find_break_index(self, lines: List[str], start_idx: int) -> Optional[int]:
@@ -443,50 +456,63 @@ class NotionScraper:
 
     def _build_coin_data(self, coin_name: str, offchain_index: int, break_index: Optional[int],
                         phase_type: str, phase_days: int, shelin_point: Optional[float],
-                        is_approaching: int, date: str, in_us_stock_section: bool = False) -> Optional[Dict]:
+                        is_approaching: int, date: str, in_us_stock_section: bool = False, in_cn_stock_section: bool = False) -> Optional[Dict]:
         """构建币种数据字典"""
         if break_index is None:
             return None
 
-        # 清理币名
-        coin_name = coin_name.upper().strip('$')
+        # 清理币名（保留中文全称）
+        original_coin_name = coin_name.strip('$')
+        coin_name_upper = coin_name.upper().strip('$')
         # 移除中文括号内容
-        coin_name = re.sub(r'（[^）]+）', '', coin_name).strip()
+        coin_name_upper = re.sub(r'（[^）]+）', '', coin_name_upper).strip()
 
-        # 特殊处理：美股
+        # 特殊处理：优先判断国内A股（避免被误标记为美股）
+        # 只通过币名判断，确保精确识别
+        is_cn_stock = 0
+        if original_coin_name.startswith('国内'):
+            is_cn_stock = 1
+            coin_name_upper = original_coin_name  # 保留中文全称
+
+        # 特殊处理：美股（国内A股不会被标记为美股）
         is_us_stock = 0
-        us_stock_list = ['纳指', 'NASDAQ', 'COIN', 'AAPL', 'HOOD', 'TSLA', 'NVDA', 'MSTR']
+        if not is_cn_stock:  # 只有非国内A股才可能是美股
+            us_stock_list = ['纳指', 'NASDAQ', 'COIN', 'AAPL', 'HOOD', 'TSLA', 'NVDA', 'MSTR']
 
-        # 方式1: 如果在美股区，直接标记为美股
-        if in_us_stock_section:
-            is_us_stock = 1
-        # 方式2: 检查是否是特定的美股名称（完全匹配）
-        else:
-            for us_stock in us_stock_list:
-                # 使用完全匹配，避免 AAPL 匹配到 AAVE
-                if coin_name == us_stock.upper():
-                    is_us_stock = 1
-                    break
-                # 特殊处理含中文的纳指
-                if us_stock in ['纳指', 'NASDAQ'] and (us_stock in coin_name or 'NASDAQ' in coin_name):
-                    coin_name = 'NASDAQ'
-                    is_us_stock = 1
-                    break
+            # 方式1: 如果在美股区，直接标记为美股
+            if in_us_stock_section:
+                is_us_stock = 1
+            # 方式2: 检查是否是特定的美股名称（完全匹配）
+            else:
+                for us_stock in us_stock_list:
+                    # 使用完全匹配，避免 AAPL 匹配到 AAVE
+                    if coin_name_upper == us_stock.upper():
+                        is_us_stock = 1
+                        break
+                    # 特殊处理含中文的纳指
+                    if us_stock in ['纳指', 'NASDAQ'] and (us_stock in coin_name_upper or 'NASDAQ' in coin_name_upper):
+                        coin_name_upper = 'NASDAQ'
+                        is_us_stock = 1
+                        break
 
-        # 特殊处理：黄金
-        if '黄金' in coin_name or 'GOLD' in coin_name.upper():
-            coin_name = 'GOLD'
+        # 对于非国内A股，应用特殊处理
+        if not is_cn_stock:
+            # 特殊处理：黄金
+            if '黄金' in coin_name_upper or 'GOLD' in coin_name_upper:
+                coin_name_upper = 'GOLD'
 
-        # 特殊处理：原油
-        if '原油' in coin_name or 'OIL' in coin_name.upper() or '布伦特' in coin_name:
-            coin_name = 'OIL'
+            # 特殊处理：原油
+            if '原油' in coin_name_upper or 'OIL' in coin_name_upper or '布伦特' in coin_name_upper:
+                coin_name_upper = 'OIL'
 
-        # 判断是否为龙头币
-        is_dragon_leader = 1 if coin_name in self.dragon_leaders else 0
+        # 判断是否为龙头币（国内A股不是龙头币）
+        is_dragon_leader = 0
+        if not is_cn_stock:
+            is_dragon_leader = 1 if coin_name_upper in self.dragon_leaders else 0
 
         return {
             'date': date,
-            'coin': coin_name,
+            'coin': coin_name_upper,
             'phase_type': phase_type,
             'phase_days': phase_days,
             'offchain_index': offchain_index,
@@ -494,6 +520,7 @@ class NotionScraper:
             'shelin_point': shelin_point,
             'is_dragon_leader': is_dragon_leader,
             'is_us_stock': is_us_stock,
+            'is_cn_stock': is_cn_stock,
             'is_approaching': is_approaching
         }
 

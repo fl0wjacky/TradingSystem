@@ -1,5 +1,82 @@
 # Mag 现货提示系统 - 更新日志
 
+## v2.4.0 (2026-01-12)
+
+### 新增功能 ✨
+
+#### 国内A股支持
+新增对国内A股资产的完整支持，实现独立的对标和修正逻辑。
+
+**功能说明:**
+- 自动识别以"国内"开头的标的（如：国内人工智能、国内机器人）
+- 国内A股与美股、BTC平级，不参与对标链验证
+- 国内A股不应用美股/BTC/龙头币修正
+- 国内A股只应用基础修正：相变修正、爆破指数修正、逼近修正
+- 排序展示：国内A股区排在最后，内部按场外指数降序
+
+**数据库变更:**
+- coin_daily_data 表新增 `is_cn_stock` 字段（INTEGER, 0/1）
+- 新增迁移脚本：`migrations/add_cn_stock_field.py`
+
+**实现细节:**
+- **notion_scraper.py**:
+  - 自动识别"国内"开头的币种
+  - 保留中文全称，不转为大写
+  - 优先判断国内A股，避免被误标记为美股
+
+- **database.py**:
+  - INSERT语句增加 `is_cn_stock` 字段
+
+- **analyzer.py**:
+  - `check_benchmark_chain_pass()`: 国内A股直接返回True
+  - `_check_benchmark_chain()`: 国内A股不检查对标链
+  - `_calculate_benchmark_divergence_correction()`: 国内A股返回0修正
+
+- **mag_reanalyze.py**:
+  - `_get_coin_sort_key()`: 新增分类5（国内A股区）
+  - `_build_coin_classification_map()`: 增加 is_cn_stock 字段
+
+**使用示例:**
+```python
+# Notion数据格式
+国内人工智能 场外指数2224 爆破310
+场外进场第21天
+
+# 自动识别为国内A股
+# is_cn_stock = 1
+# 不应用美股/BTC/龙头币修正
+# 排序时排在国内A股区
+```
+
+**排序规则:**
+```
+1. 美股区（按场外指数降序）
+2. BTC（对标基准）
+3. 龙头币（按场外指数降序）
+4. 山寨币（按场外指数降序）
+5. 国内A股区（按场外指数降序）← 新增
+```
+
+**测试验证:**
+- 验证国内A股自动识别
+- 验证对标链不检查国内A股
+- 验证修正系统不应用对标链修正
+- 验证排序正确显示在最后
+
+**数据库迁移:**
+```bash
+# 运行迁移脚本
+python3 migrations/add_cn_stock_field.py
+
+# 验证迁移成功
+sqlite3 mag_data.db "PRAGMA table_info(coin_daily_data);" | grep is_cn_stock
+```
+
+**设计理念:**
+国内A股市场具有独立性，不应该被美国市场和加密货币市场的对标链逻辑约束。因此设计为独立体系，与美股、BTC平级，只应用基础的市场规律修正。
+
+---
+
 ## v2.3.0 (2025-10-16)
 
 ### 重大修复 🐛

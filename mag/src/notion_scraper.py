@@ -23,6 +23,16 @@ class NotionScraper:
     def __init__(self, url: str):
         self.url = url
         self.dragon_leaders = ['ETH', 'BNB', 'SOL', 'DOGE']  # 默认龙头币列表（BTC是对标基准，不是龙头币）
+        # 国内A股识别关键词列表
+        self.cn_stock_keywords = [
+            '国内',      # 国内人工智能etf、国内机器人etf等
+            'A股指数',   # A股指数
+            'A股ETF',    # 可能的未来命名
+            '沪深',      # 沪深300等
+            '上证',      # 上证指数
+            '深证',      # 深证指数
+            '创业板',    # 创业板指数
+        ]
 
     def fetch_data(self) -> str:
         """
@@ -464,15 +474,18 @@ class NotionScraper:
         # 清理币名（保留中文全称）
         original_coin_name = coin_name.strip('$')
         coin_name_upper = coin_name.upper().strip('$')
-        # 移除中文括号内容
+
+        # 移除中文括号内容（用于分类判断）
+        coin_name_for_check = re.sub(r'（[^）]+）', '', original_coin_name).strip()
         coin_name_upper = re.sub(r'（[^）]+）', '', coin_name_upper).strip()
 
         # 特殊处理：优先判断国内A股（避免被误标记为美股）
-        # 只通过币名判断，确保精确识别
+        # 使用关键词列表判断，支持多种命名模式
+        # 注意：判断时使用去除括号后的名称，避免描述信息干扰
         is_cn_stock = 0
-        if original_coin_name.startswith('国内'):
+        if any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
             is_cn_stock = 1
-            coin_name_upper = original_coin_name  # 保留中文全称
+            coin_name_upper = coin_name_for_check  # 保留中文全称（已去除括号描述）
 
         # 特殊处理：美股（国内A股不会被标记为美股）
         is_us_stock = 0

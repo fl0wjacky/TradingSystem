@@ -490,7 +490,16 @@ class NotionScraper:
         # 特殊处理：美股（国内A股不会被标记为美股）
         is_us_stock = 0
         if not is_cn_stock:  # 只有非国内A股才可能是美股
-            us_stock_list = ['纳指', 'NASDAQ', 'COIN', 'AAPL', 'HOOD', 'TSLA', 'NVDA', 'MSTR']
+            # 美股列表：作为区域识别的兜底保障
+            us_stock_list = [
+                '纳指', 'NASDAQ',           # 纳斯达克指数
+                'COIN', 'HOOD',             # 加密货币交易所
+                'AAPL', 'MSFT', 'GOOG',     # 科技巨头
+                'TSLA', 'NVDA',             # 特斯拉、英伟达
+                'MSTR',                     # 微策略（比特币概念股）
+                'BABA',                     # 阿里巴巴
+                'CIRCLE',                   # Circle（USDC发行方）
+            ]
 
             # 方式1: 如果在美股区，直接标记为美股
             if in_us_stock_section:

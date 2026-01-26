@@ -211,7 +211,7 @@ def _generate_text_output(start_date: str, end_date: str, all_nodes: list, verbo
     return "\n".join(lines)
 
 
-def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, verbose: bool = False):
+def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None, verbose: bool = False, no_altcoins: bool = False):
     """
     重新分析指定日期范围的数据（JSON模式）
 
@@ -220,6 +220,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
         end_date: 结束日期 (YYYY-MM-DD)
         coins: 指定币种列表，None表示所有币种
         verbose: 是否显示详细分析建议（默认False）
+        no_altcoins: 是否过滤掉山寨币（只显示美股、BTC、龙头币、国内A股）
 
     Returns:
         dict: 包含分析结果的字典，总是包含 txt_output 字段
@@ -321,6 +322,25 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
 
     # 按日期和币种排序（新规则：美股 → 龙头币 → 山寨币）
     all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, classification_map)))
+
+    # 如果启用了 no_altcoins，过滤掉山寨币
+    if no_altcoins:
+        filtered_nodes = []
+        for node in all_nodes:
+            classification = classification_map.get((node['date'], node['coin']), {})
+            is_us_stock = classification.get('is_us_stock', 0)
+            is_dragon_leader = classification.get('is_dragon_leader', 0)
+            is_cn_stock = classification.get('is_cn_stock', 0)
+            coin = node['coin']
+
+            # 判断是否为山寨币（分类4）
+            is_altcoin = (not is_us_stock and coin != 'BTC' and
+                         not is_dragon_leader and not is_cn_stock)
+
+            if not is_altcoin:
+                filtered_nodes.append(node)
+
+        all_nodes = filtered_nodes
 
     # 生成纯文本输出（总是生成）
     txt_output = _generate_text_output(start_date, end_date, all_nodes, verbose)

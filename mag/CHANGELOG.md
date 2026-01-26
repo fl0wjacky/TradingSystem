@@ -113,6 +113,47 @@ if any(keyword in original_coin_name for keyword in cn_stock_keywords):
 **向后兼容:**
 完全向后兼容，已有的"国内"前缀标的继续正常识别。
 
+#### 重新分析工具新增山寨币过滤参数 (2026-01-26)
+mag_reanalyze 工具新增 `--no-altcoins` 参数，支持过滤掉山寨币节点。
+
+**新增参数:**
+```bash
+--no-altcoins    过滤掉山寨币，只显示美股、BTC、龙头币、国内A股
+```
+
+**使用示例:**
+```bash
+# 重新分析并过滤掉山寨币
+./mag_reanalyze.sh 2026-01-26 --no-altcoins
+
+# 结合详细模式
+./mag_reanalyze.sh 2026-01-26 --no-altcoins -v
+
+# 分析日期范围并过滤山寨币
+./mag_reanalyze.sh 2025-10-10 2025-10-15 --no-altcoins
+```
+
+**过滤规则:**
+山寨币判定条件：不是美股 且 不是BTC 且 不是龙头币 且 不是国内A股
+
+**保留的币种分类:**
+1. 美股区（NASDAQ, MSFT, BABA, GOLD, OIL等）
+2. BTC（对标基准）
+3. 龙头币（ETH, BNB, SOL, DOGE等）
+4. 国内A股（A股指数、国内人工智能etf、国内机器人等）
+
+**过滤的山寨币:**
+LTC, LINK, AAVE, PEPE, UNI, TRUMP等其他加密货币
+
+**验证结果（2026-01-26测试）:**
+- 不加参数：16个节点（包含7个山寨币节点）
+- 加 --no-altcoins：9个节点（成功过滤7个山寨币节点）
+
+**应用场景:**
+- 关注主流资产走势，减少信息噪音
+- 快速查看美股和龙头币的关键节点
+- 简化长期趋势分析
+
 #### 美股列表扩展 (2026-01-14)
 扩展美股识别列表，作为区域识别的兜底保障。
 

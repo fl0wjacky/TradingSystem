@@ -348,7 +348,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
     return result
 
 
-def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, verbose: bool = False, img_output: bool = False):
+def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, verbose: bool = False, img_output: bool = False, no_altcoins: bool = False):
     """
     重新分析指定日期范围的数据
 
@@ -358,6 +358,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
         coins: 指定币种列表，None表示所有币种
         verbose: 是否显示详细分析结果
         img_output: 是否导出节点列表图片
+        no_altcoins: 是否过滤掉山寨币（只显示美股、BTC、龙头币、国内A股）
     """
     from src.config import mag_config
 
@@ -507,7 +508,24 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
         all_nodes.sort(key=lambda x: (x['date'], _get_coin_sort_key(x, classification_map)))
 
         # 显示所有节点
-        for i, node in enumerate(all_nodes, 1):
+        display_index = 1
+        for node in all_nodes:
+            # 如果启用了 no_altcoins，过滤掉山寨币
+            if no_altcoins:
+                classification = classification_map.get((node['date'], node['coin']), {})
+                is_us_stock = classification.get('is_us_stock', 0)
+                is_dragon_leader = classification.get('is_dragon_leader', 0)
+                is_cn_stock = classification.get('is_cn_stock', 0)
+                coin = node['coin']
+
+                # 判断是否为山寨币（分类4）
+                # 山寨币：不是美股、不是BTC、不是龙头币、不是国内A股
+                is_altcoin = (not is_us_stock and coin != 'BTC' and
+                             not is_dragon_leader and not is_cn_stock)
+
+                if is_altcoin:
+                    continue  # 跳过山寨币
+
             if node['type'] == 'key':
                 # 关键节点
                 result = node['data']
@@ -528,7 +546,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
 
                 # 构建显示文本
                 display_parts = [
-                    f"[{color}]{i}. {result['date']}[/{color}]",
+                    f"[{color}]{display_index}. {result['date']}[/{color}]",
                     f"[bold]{result['coin']}[/bold]"
                 ]
 
@@ -575,7 +593,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
 
                 # 特殊节点用黄色显示
                 display_parts = [
-                    f"[yellow]{i}. {special_node['date']}[/yellow]",
+                    f"[yellow]{display_index}. {special_node['date']}[/yellow]",
                     f"[bold]{special_node['coin']}[/bold]",
                     node_description
                 ]
@@ -601,6 +619,9 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
                         console.print(f"\n[dim]{'─' * 70}[/dim]")
                         console.print(advice)
                         console.print(f"[dim]{'─' * 70}[/dim]\n")
+
+            # 显示后递增序号
+            display_index += 1
 
         # 如果需要导出图片，保存为HTML
         if img_output:
@@ -629,6 +650,7 @@ def main():
   end_date    - 结束日期 (可选，默认为开始日期)
   -v, --verbose - 显示详细分析结果和建议
   --img       - 导出节点列表为SVG图片
+  --no-altcoins - 过滤掉山寨币，只显示美股、BTC、龙头币、国内A股
   coins       - 指定币种 (可选，多个币种用空格分隔)
 
 示例:
@@ -650,6 +672,12 @@ def main():
   # 重新分析日期范围的指定币种
   python3 mag_reanalyze.py 2025-10-10 2025-10-15 BTC ETH
 
+  # 重新分析并过滤掉山寨币
+  python3 mag_reanalyze.py 2025-10-14 --no-altcoins
+
+  # 重新分析日期范围并过滤掉山寨币
+  python3 mag_reanalyze.py 2025-10-10 2025-10-15 --no-altcoins -v
+
   # 重新分析所有历史数据
   python3 mag_reanalyze.py 2025-01-01 2025-12-31
         """)
@@ -658,7 +686,8 @@ def main():
     # 检查选项
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
     img_output = '--img' in sys.argv
-    args = [arg for arg in sys.argv[1:] if arg not in ['-v', '--verbose', '--img']]
+    no_altcoins = '--no-altcoins' in sys.argv
+    args = [arg for arg in sys.argv[1:] if arg not in ['-v', '--verbose', '--img', '--no-altcoins']]
 
     if not args:
         console.print("[red]错误：请至少指定开始日期[/red]")
@@ -686,7 +715,7 @@ def main():
 
     # 执行重新分析
     try:
-        reanalyze_date_range(start_date, end_date, coins, verbose, img_output)
+        reanalyze_date_range(start_date, end_date, coins, verbose, img_output, no_altcoins)
     except Exception as e:
         console.print(f"\n[red]错误：{str(e)}[/red]")
         import traceback

@@ -173,7 +173,8 @@ class NotionScraper:
         # 美股纳指 OTC 场外指数847场外退场期第4天（包含中文和空格）
         # btc 场外指数1164 场外进场期第1天（场外指数和进场期之间有空格）
         # Ondo 场外指数526场外退场第36天（无"期"字）
-        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
+        # 白银 Xag场外指数1659场外进场68天（混合大小写标识）
+        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
         if match1:
             # 统一格式：补充"期"字
             phase_type = match1.group(3) + '期'
@@ -193,7 +194,8 @@ class NotionScraper:
         # 美股纳指 OTC 场外指数859
         # 场外进场期第7天
         # 爆破指数206
-        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)$', line)
+        # 白银 Xag场外指数1659（混合大小写标识）
+        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)$', line)
         if match1_5:
             # 向下查找进退场期和爆破指数
             phase_info = self._find_phase_info(lines, start_idx + 1)
@@ -520,8 +522,12 @@ class NotionScraper:
         # 对于非国内A股，应用特殊处理
         if not is_cn_stock:
             # 特殊处理：黄金
-            if '黄金' in coin_name_upper or 'GOLD' in coin_name_upper:
+            if '黄金' in coin_name_upper or 'GOLD' in coin_name_upper or 'XAU' in coin_name_upper:
                 coin_name_upper = 'GOLD'
+
+            # 特殊处理：白银
+            if '白银' in coin_name_upper or 'SILVER' in coin_name_upper or 'XAG' in coin_name_upper:
+                coin_name_upper = '白银'
 
             # 特殊处理：原油
             if '原油' in coin_name_upper or 'OIL' in coin_name_upper or '布伦特' in coin_name_upper:

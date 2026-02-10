@@ -4,7 +4,7 @@ Notion数据抓取与解析模块
 """
 import re
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from rich.console import Console
 
 # 导入抓取器和配置
@@ -86,20 +86,37 @@ class NotionScraper:
         # 提取日期 - 支持带年份和不带年份两种格式
         # 格式1: 2024.11.16 (带年份)
         # 格式2: 11.16 (不带年份，使用当前年份)
-        date_match_with_year = re.search(r'(\d{4})\.(\d{1,2})\.(\d{1,2})', raw_text)
+        # 为了避免误匹配，只在页面前2000个字符中查找
+        search_text = raw_text[:2000]
+
+        date_match_with_year = re.search(r'(\d{4})\.(\d{1,2})\.(\d{1,2})', search_text)
         if date_match_with_year:
-            year = date_match_with_year.group(1)
-            month = date_match_with_year.group(2)
-            day = date_match_with_year.group(3)
-            formatted_date = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+            year = int(date_match_with_year.group(1))
+            month = int(date_match_with_year.group(2))
+            day = int(date_match_with_year.group(3))
+            formatted_date = f"{year}-{month:02d}-{day:02d}"
         else:
-            date_match = re.search(r'(\d{1,2}\.\d{1,2})', raw_text)
+            date_match = re.search(r'(\d{1,2})\.(\d{1,2})', search_text)
             if not date_match:
                 raise Exception("未找到日期信息")
-            date_str = date_match.group(1)
-            month, day = date_str.split('.')
+
+            month = int(date_match.group(1))
+            day = int(date_match.group(2))
+
+            # 验证月份和日期的合法性
+            if not (1 <= month <= 12):
+                raise Exception(f"日期格式错误：月份{month}不在1-12范围内")
+            if not (1 <= day <= 31):
+                raise Exception(f"日期格式错误：日期{day}不在1-31范围内")
+
             current_year = datetime.now().year
-            formatted_date = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
+            formatted_date = f"{current_year}-{month:02d}-{day:02d}"
+
+            # 验证不是未来日期（允许1天的误差）
+            parsed_date = datetime.strptime(formatted_date, '%Y-%m-%d')
+            today = datetime.now()
+            if parsed_date > today + timedelta(days=1):
+                raise Exception(f"日期异常：{formatted_date}是未来日期，请检查Notion页面中的日期格式")
 
         lines = raw_text.split('\n')
 

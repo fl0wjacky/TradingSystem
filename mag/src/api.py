@@ -3,10 +3,11 @@
 Mag API Server
 提供HTTP API接口用于导入和分析数据
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends,status
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+import ipaddress
 
 from src.mag_reanalyze import reanalyze_date_range_json
 from src.mag_system import import_and_analyze_json
@@ -17,6 +18,31 @@ app = FastAPI(
     description="Mag交易系统数据导入和分析API",
     version="1.0.0"
 )
+
+# 1. 定义允许的网段
+ALLOWED_NETWORKS = [
+    ipaddress.ip_network('127.0.0.1/32'),  # 本机
+    ipaddress.ip_network('::1/128'),        # IPv6 本机
+    ipaddress.ip_network('10.42.0.0/16'),    # A类内网
+]
+
+# 2. 创建 IP 校验依赖函数
+async def check_ip_restriction(request: Request):
+    client_host = request.client.host
+    client_ip = ipaddress.ip_address(client_host)
+
+    # 检查是否在允许的网段内（跳过版本不匹配的网段，避免 IPv4/IPv6 比较抛 TypeError）
+    is_allowed = any(
+        client_ip.version == network.version and client_ip in network
+        for network in ALLOWED_NETWORKS
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access from IP {client_host} is not allowed"
+        )
+    return client_host
 
 
 # ========== 请求模型 ==========
@@ -72,7 +98,7 @@ async def root():
     }
 
 
-@app.post("/api/v1/import")
+@app.post("/api/v1/import", dependencies=[Depends(check_ip_restriction)])
 async def import_data(request: ImportRequest):
     """
     导入Notion数据并分析

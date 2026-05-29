@@ -37,6 +37,7 @@ wheels/
 # Database
 mag_data.db
 *.db
+*.db.bak*
 
 # Logs
 *.log

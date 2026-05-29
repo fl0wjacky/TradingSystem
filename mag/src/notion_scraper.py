@@ -505,6 +505,10 @@ class NotionScraper:
         if any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
             is_cn_stock = 1
             coin_name_upper = coin_name_for_check  # 保留中文全称（已去除括号描述）
+            # 作者偶尔会在"国内机器人/国内人工智能"后加 etf 后缀，归一为无后缀版避免标的分裂
+            stripped = re.sub(r'(?i)etf$', '', coin_name_upper).strip()
+            if stripped in ('国内机器人', '国内人工智能'):
+                coin_name_upper = stripped
 
         # 特殊处理：美股（国内A股不会被标记为美股）
         is_us_stock = 0

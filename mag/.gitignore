@@ -25,7 +25,8 @@ wheels/
 *.egg
 
 # Pipenv
-# Note: Pipfile and Pipfile.lock should be committed to version control
+Pipfile
+Pipfile.lock
 
 # IDE
 .vscode/

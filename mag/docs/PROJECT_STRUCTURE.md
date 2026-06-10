@@ -30,7 +30,8 @@ mag/
 │   ├── test_phase_logic.py      # 进退场期逻辑测试
 │   ├── test_us_stock_detection.py # 美股识别逻辑测试
 │   ├── test_approaching_correction.py # 逼近修正测试
-│   └── test_multiple_break200.py # 多次跌破200测试
+│   ├── test_multiple_break200.py # 多次跌破200测试
+│   └── test_backtest.py         # 回测功能测试
 │
 ├── migrations/                  # 数据库迁移目录
 │   ├── add_approaching_field.py # 添加逼近字段迁移脚本
@@ -42,13 +43,14 @@ mag/
 │   ├── mag_import_template.csv  # CSV 导入模板
 │   └── mag_import_template.json # JSON 导入模板
 │
-├── 文档 (Documentation)
-│   ├── README.md                # 项目说明文档
-│   ├── CHANGELOG.md             # 版本更新日志
+├── README.md                   # 项目说明文档 (根目录)
+├── CHANGELOG.md                 # 版本更新日志 (根目录)
+│
+├── docs/                        # 文档目录
+│   ├── API_README.md           # API 接口说明文档
+│   ├── PROJECT_STRUCTURE.md     # 本文件 - 项目结构说明
 │   ├── 数据录入指南.md         # 数据录入操作指南
-│   ├── mag.md                   # Mag 体系详细说明
-│   ├── mvp.md                   # MVP 开发计划
-│   └── PROJECT_STRUCTURE.md     # 本文件 - 项目结构说明
+│   └── mvp.md                   # MVP 开发计划
 │
 └── 依赖配置 (Dependencies)
     └── requirements.txt         # Python 依赖包列表

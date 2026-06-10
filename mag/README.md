@@ -1147,7 +1147,7 @@ BTC和美股：
 
 ### 文件结构
 
-详见 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+详见 [PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)
 
 ### 版本历史
 
@@ -1202,6 +1202,6 @@ Claude Code - 开发辅助
 **⚠️ 风险提示**: 本系统仅供参考，不构成投资建议。投资有风险，决策需谨慎。
 
 **📚 延伸阅读**:
-- [项目结构说明](PROJECT_STRUCTURE.md)
+- [项目结构说明](docs/PROJECT_STRUCTURE.md)
 - [版本更新日志](CHANGELOG.md)
-- [数据录入指南](数据录入指南.md)
+- [数据录入指南](docs/数据录入指南.md)

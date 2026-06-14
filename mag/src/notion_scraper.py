@@ -191,7 +191,7 @@ class NotionScraper:
         # btc 场外指数1164 场外进场期第1天（场外指数和进场期之间有空格）
         # Ondo 场外指数526场外退场第36天（无"期"字）
         # 白银 Xag场外指数1659场外进场68天（混合大小写标识）
-        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
+        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数\s*(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
         if match1:
             # 统一格式：补充"期"字
             phase_type = match1.group(3) + '期'
@@ -212,7 +212,7 @@ class NotionScraper:
         # 场外进场期第7天
         # 爆破指数206
         # 白银 Xag场外指数1659（混合大小写标识）
-        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数(\d+)$', line)
+        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数\s*(\d+)$', line)
         if match1_5:
             # 向下查找进退场期和爆破指数
             phase_info = self._find_phase_info(lines, start_idx + 1)
@@ -244,7 +244,7 @@ class NotionScraper:
         # hood 场外指数1089爆破114
         # 布伦特原油 场外指数798爆破指数-25
         # circle 场外指数1125 爆破指数261（场外指数和爆破之间有空格）
-        match2 = re.match(r'^([A-Za-z\u4e00-\u9fa5]+)\s+场外指数(\d+)\s*爆破(?:指数)?(-?\d+)', line)
+        match2 = re.match(r'^([A-Za-z\u4e00-\u9fa5]+)\s+场外指数\s*(\d+)\s*爆破(?:指数)?(-?\d+)', line)
         if match2:
             # 向下查找进退场期信息
             phase_info = self._find_phase_info(lines, start_idx + 1)
@@ -297,7 +297,7 @@ class NotionScraper:
                     continue
 
                 # 查找：场外指数XXX爆破指数XXX 或 场外指数XXX 爆破XXX（地产格式）
-                combined = re.match(r'场外指数(\d+)\s*爆破(?:指数)?\s*(-?\d+)', next_line)
+                combined = re.match(r'场外指数\s*(\d+)\s*爆破(?:指数)?\s*(-?\d+)', next_line)
                 if combined:
                     # 从币名开始向下查找进退场期(覆盖进退场期在场外指数前后的情况)
                     phase_info = self._find_phase_info(lines, start_idx + 1)
@@ -315,7 +315,7 @@ class NotionScraper:
                         )
 
                 # 查找：场外指数XXX 单独，爆破指数在下一行
-                only_off = re.match(r'场外指数(\d+)$', next_line)
+                only_off = re.match(r'场外指数\s*(\d+)$', next_line)
                 if only_off:
                     break_info = self._find_break_index(lines, j + 1)
                     # 从币名开始向下查找进退场期(覆盖进退场期在场外指数前后的情况)
@@ -335,7 +335,7 @@ class NotionScraper:
 
         # === 格式4: 特殊格式（地产等）===
         # 地产 场外指数1764 爆破238 进场期第3月
-        match4 = re.match(r'^([^ ]+)\s+(?:（[^）]+）\s+)?场外指数(\d+)\s+爆破(?:指数)?(\d+)', line)
+        match4 = re.match(r'^([^ ]+)\s+(?:（[^）]+）\s+)?场外指数\s*(\d+)\s+爆破(?:指数)?(\d+)', line)
         if match4:
             # 验证币种名不是"进/退场期第X天"格式
             coin_name_candidate = match4.group(1)
@@ -455,7 +455,8 @@ class NotionScraper:
                 if re.match(r'^[\$]?[A-Za-z]+$', search_line):
                     break
                 # 停止条件A2：中文币名（1-4个纯中文字符）
-                if re.match(r'^[\u4e00-\u9fa5]{1,4}$', search_line):
+                # 注意：'逼近'两字会误中下面中文币名规则，需排除，否则单独成行的逼近会被当作币名提前 break 而漏检
+                if re.match(r'^[\u4e00-\u9fa5]{1,4}$', search_line) and '逼近' not in search_line:
                     break
 
             # 检查是否包含"逼近"

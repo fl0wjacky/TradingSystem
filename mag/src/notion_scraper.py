@@ -221,7 +221,9 @@ class NotionScraper:
                 break_index = None
                 for j in range(start_idx + 1, min(start_idx + 5, len(lines))):
                     next_line = lines[j].strip()
-                    break_match = re.match(r'爆破(?:指数)?\s*(-?\d+)', next_line)
+                    # 用 search 而非 match：爆破指数可能出现在进退场期行的中部
+                    # (如"场外退场期第45天  爆破指数7")，行首锚定会漏掉而误抓下一标的的值
+                    break_match = re.search(r'爆破(?:指数)?\s*(-?\d+)', next_line)
                     if break_match:
                         break_index = int(break_match.group(1))
                         break

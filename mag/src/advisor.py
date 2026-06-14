@@ -149,7 +149,8 @@ class MagAdvisor:
             parts.append(f"龙头币 {enter_count}/{len(leaders)} 进场期")
 
         if not parts:
-            if coin_data.get('is_us_stock'):
+            if coin_data.get('is_us_stock') or coin_data.get('is_cn_stock'):
+                # 美股、国内A股均为顶层标的，无需对标链
                 return "顶层参考指标"
             elif coin_data['coin'] == 'BTC':
                 return "核心基准币种"

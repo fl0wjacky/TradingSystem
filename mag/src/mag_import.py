@@ -313,10 +313,10 @@ def batch_import_html(html_file: str):
 
                 memo_count += 1
 
-                # 查找日期行(如 "10.14")
+                # 查找日期行(如 "10.14" 或带年份的 "2026.6.13")
                 date_line = None
                 for line in text_lines[1:5]:  # 日期通常在前几行
-                    if re.match(r'^\d{1,2}\.\d{1,2}$', line):
+                    if re.match(r'^(?:\d{4}\.)?\d{1,2}\.\d{1,2}$', line):
                         date_line = line
                         break
 

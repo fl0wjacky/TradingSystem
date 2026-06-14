@@ -28,6 +28,7 @@ class MagDatabase:
                     shelin_point REAL,
                     is_dragon_leader INTEGER DEFAULT 0,  -- 1为龙头币，0为否
                     is_us_stock INTEGER DEFAULT 0,  -- 1为美股纳指，0为否
+                    is_cn_stock INTEGER DEFAULT 0,  -- 1为国内A股，0为否
                     is_approaching INTEGER DEFAULT 0,  -- 1为逼近状态，0为否
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (date, coin)

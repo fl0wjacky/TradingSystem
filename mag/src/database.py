@@ -441,6 +441,15 @@ class MagDatabase:
             conn.commit()
             return deleted_analysis + deleted_special
 
+    def date_exists(self, date: str) -> bool:
+        """判断数据库中是否已存在某一天的币种数据"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM coin_daily_data WHERE date = ? LIMIT 1", (date,)
+            )
+            return cursor.fetchone() is not None
+
     def get_data_in_range(self, start_date: str, end_date: str) -> List[Dict]:
         """获取指定日期范围内的所有币种数据"""
         with sqlite3.connect(self.db_path) as conn:

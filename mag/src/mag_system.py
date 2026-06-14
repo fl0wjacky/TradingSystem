@@ -60,6 +60,29 @@ def import_and_analyze_json(notion_url: str, auto_analyze: bool = True):
                 "detail": "从Notion链接中未能解析到任何币种数据"
             }
 
+        # 1.5 录入前校验（本次导入的日期来自笔记内容）
+        from datetime import datetime
+        import_dates = sorted({cd['date'] for cd in coin_data_list})
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        # 情况一：该日期数据已存在 → 拒绝
+        existing = [d for d in import_dates if db.date_exists(d)]
+        if existing:
+            return {
+                "success": False,
+                "error": "Date already exists",
+                "detail": f"拒绝录入：数据库中已存在 {', '.join(existing)} 的数据，请勿重复导入"
+            }
+
+        # 情况二：日期为未来时间 → 拒绝
+        future = [d for d in import_dates if d > today]
+        if future:
+            return {
+                "success": False,
+                "error": "Future date",
+                "detail": f"拒绝录入：日期 {', '.join(future)} 是未来时间（今天为 {today}），请检查笔记中的日期"
+            }
+
         # 2. 存储数据
         for coin_data in coin_data_list:
             db.insert_or_update_coin_data(coin_data)

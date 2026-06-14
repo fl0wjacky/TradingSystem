@@ -7,6 +7,10 @@ from typing import List, Dict, Optional, Tuple
 
 
 class MagDatabase:
+    # 除国内A股(is_cn_stock)外，还需"与前一日完全相同则去重"的低频更新标的。
+    # 地产为月更标的，月内每日内容完全重复。
+    DEDUP_COIN_NAMES = {'地产'}
+
     def __init__(self, db_path: str = "mag_data.db"):
         self.db_path = db_path
         self.init_database()
@@ -94,15 +98,16 @@ class MagDatabase:
     def insert_or_update_coin_data(self, data: Dict) -> bool:
         """插入或更新币种数据（同日期同币种会覆盖）
 
-        国内A股标的(is_cn_stock)去重：若与"前一交易日"该标的完全相同
-        （场外指数、爆破指数、进/退场类型、进/退场天数 四者均相同）则跳过写入，
-        因 A 股 ETF 常多日不更新而被重复记录。天数不同则即使场外/爆破相同也照常写入。
+        低频更新标的去重：国内A股标的(is_cn_stock)与地产(月更)，若与"前一交易日"
+        该标的完全相同（场外指数、爆破指数、进/退场类型、进/退场天数 四者均相同）
+        则跳过写入，因这类标的常多日不更新而被重复记录。天数不同则即使场外/爆破
+        相同也照常写入。
 
         返回 True 表示已写入，False 表示因与前一日重复被跳过。
         """
-        if data.get('is_cn_stock'):
+        if data.get('is_cn_stock') or data.get('coin') in self.DEDUP_COIN_NAMES:
             prev = self.get_previous_day_data(data['coin'], data['date'])
-            if prev and self._is_same_cn_stock_record(prev, data):
+            if prev and self._is_same_record_for_dedup(prev, data):
                 return False
 
         with sqlite3.connect(self.db_path) as conn:
@@ -129,8 +134,8 @@ class MagDatabase:
         return True
 
     @staticmethod
-    def _is_same_cn_stock_record(prev: Dict, cur: Dict) -> bool:
-        """判断国内A股标的与前一日是否完全相同（场外指数、爆破指数、进退场类型、天数）"""
+    def _is_same_record_for_dedup(prev: Dict, cur: Dict) -> bool:
+        """判断与前一日是否完全相同（场外指数、爆破指数、进退场类型、天数）"""
         return (
             prev.get('offchain_index') == cur.get('offchain_index')
             and prev.get('break_index') == cur.get('break_index')

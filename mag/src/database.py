@@ -91,8 +91,20 @@ class MagDatabase:
 
             conn.commit()
 
-    def insert_or_update_coin_data(self, data: Dict):
-        """插入或更新币种数据（同日期同币种会覆盖）"""
+    def insert_or_update_coin_data(self, data: Dict) -> bool:
+        """插入或更新币种数据（同日期同币种会覆盖）
+
+        国内A股标的(is_cn_stock)去重：若与"前一交易日"该标的完全相同
+        （场外指数、爆破指数、进/退场类型、进/退场天数 四者均相同）则跳过写入，
+        因 A 股 ETF 常多日不更新而被重复记录。天数不同则即使场外/爆破相同也照常写入。
+
+        返回 True 表示已写入，False 表示因与前一日重复被跳过。
+        """
+        if data.get('is_cn_stock'):
+            prev = self.get_previous_day_data(data['coin'], data['date'])
+            if prev and self._is_same_cn_stock_record(prev, data):
+                return False
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -114,6 +126,17 @@ class MagDatabase:
                 data.get('is_approaching', 0)
             ))
             conn.commit()
+        return True
+
+    @staticmethod
+    def _is_same_cn_stock_record(prev: Dict, cur: Dict) -> bool:
+        """判断国内A股标的与前一日是否完全相同（场外指数、爆破指数、进退场类型、天数）"""
+        return (
+            prev.get('offchain_index') == cur.get('offchain_index')
+            and prev.get('break_index') == cur.get('break_index')
+            and prev.get('phase_type') == cur.get('phase_type')
+            and prev.get('phase_days') == cur.get('phase_days')
+        )
 
     def get_coin_data(self, coin: str, date: str) -> Optional[Dict]:
         """获取特定币种特定日期的数据"""

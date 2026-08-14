@@ -752,7 +752,7 @@ class MagAnalyzer:
 
         特殊节点类型：
         1. quality_warning_entry: 进场期质量修正（头7次更新爆破指数未破200且均值下降）
-        2. quality_warning_exit: 退场期质量修正（头7次更新爆破指数未跌破0）
+        2. quality_warning_exit: 退场期质量修正（头7次更新爆破指数未跌破0且均值上升）
         3. break_above_200: 爆破指数超过200
         4. break_below_0: 爆破指数正变负
         5. offchain_above_1000: 场外指数超过1000
@@ -836,10 +836,13 @@ class MagAnalyzer:
                 if not already_warned:
                     # 获取从小节起始到当前日期的所有数据
                     history = self.db.get_coin_history(coin, limit=100)
-                    section_data = [
-                        record for record in history
-                        if section_start_date <= record['date'] <= date
-                    ]
+                    # get_coin_history 返回按日期倒序，这里排序为时间正序，
+                    # 确保 first_half=较早、second_half=较晚，趋势判断与真实时间一致
+                    section_data = sorted(
+                        [record for record in history
+                         if section_start_date <= record['date'] <= date],
+                        key=lambda r: r['date']
+                    )
 
                     # 如果刚好是小节的第7次（或第14次）更新
                     if len(section_data) == check_count:
@@ -879,20 +882,34 @@ class MagAnalyzer:
                 if not already_warned:
                     # 获取从小节起始到当前日期的所有数据
                     history = self.db.get_coin_history(coin, limit=100)
-                    section_data = [
-                        record for record in history
-                        if section_start_date <= record['date'] <= date
-                    ]
+                    # get_coin_history 返回按日期倒序，这里排序为时间正序，
+                    # 确保 first_half=较早、second_half=较晚，趋势判断与真实时间一致
+                    section_data = sorted(
+                        [record for record in history
+                         if section_start_date <= record['date'] <= date],
+                        key=lambda r: r['date']
+                    )
 
                     # 如果刚好是小节的第7次（或第14次）更新
                     if len(section_data) == check_count:
                         # 检查是否有任何一次爆破指数跌破0
                         has_break_0 = any(d.get('break_index', 0) < 0 for d in section_data)
 
-                        # 如果未跌破0
-                        if not has_break_0:
-                            self.db.insert_special_node(
-                                date, coin, 'quality_warning_exit',
-                                f"退场期第{check_count}次更新 - 爆破指数未跌破0 - 质量下降",
-                                offchain_index, break_index
-                            )
+                        # 计算爆破指数的移动平均趋势（对称于进场期）
+                        break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
+
+                        if len(break_indices) >= 2:
+                            # 简单判断：前半部分平均值 vs 后半部分平均值
+                            mid = len(break_indices) // 2
+                            first_half_avg = sum(break_indices[:mid]) / mid
+                            second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+
+                            is_rising = second_half_avg > first_half_avg
+
+                            # 如果未跌破0且均值上升
+                            if not has_break_0 and is_rising:
+                                self.db.insert_special_node(
+                                    date, coin, 'quality_warning_exit',
+                                    f"退场期第{check_count}次更新 - 爆破指数未跌破0且均值上升 - 质量下降",
+                                    offchain_index, break_index
+                                )

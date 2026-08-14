@@ -161,12 +161,12 @@ function buildOption(coin) {
 
   // 面板布局：有K线=3栏，无K线=2栏
   const grids = kl ? [
-      { left: 62, right: 24, top: 20, height: '40%' },
-      { left: 62, right: 24, top: '52%', height: '20%' },
-      { left: 62, right: 24, top: '76%', height: '17%' }
+      { left: 62, right: 58, top: 20, height: '40%' },
+      { left: 62, right: 58, top: '52%', height: '20%' },
+      { left: 62, right: 58, top: '76%', height: '17%' }
     ] : [
-      { left: 62, right: 24, top: 20, height: '40%' },
-      { left: 62, right: 24, top: '56%', height: '34%' }
+      { left: 62, right: 58, top: 20, height: '40%' },
+      { left: 62, right: 58, top: '56%', height: '34%' }
     ];
   const nGrid = grids.length;
   const offGrid = kl ? 1 : 0, brkGrid = kl ? 2 : 1;

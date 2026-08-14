@@ -161,11 +161,11 @@ function buildOption(coin) {
 
   // 面板布局：有K线=3栏，无K线=2栏
   const grids = kl ? [
-      { left: 62, right: 58, top: 20, height: '40%' },
+      { left: 62, right: 58, top: 34, height: '38%' },
       { left: 62, right: 58, top: '52%', height: '20%' },
       { left: 62, right: 58, top: '76%', height: '17%' }
     ] : [
-      { left: 62, right: 58, top: 20, height: '40%' },
+      { left: 62, right: 58, top: 34, height: '38%' },
       { left: 62, right: 58, top: '56%', height: '34%' }
     ];
   const nGrid = grids.length;
@@ -180,8 +180,8 @@ function buildOption(coin) {
 
   const xAxis = [], yAxis = [], series = [];
   if (kl) { xAxis.push(mkX(0, false)); yAxis.push(mkY(0, 'K线')); }
-  xAxis.push(mkX(offGrid, false)); yAxis.push(mkY(offGrid, '场外'));
-  xAxis.push(mkX(brkGrid, true));  yAxis.push(mkY(brkGrid, '爆破'));
+  xAxis.push(mkX(offGrid, false)); yAxis.push(mkY(offGrid, '场外指数'));
+  xAxis.push(mkX(brkGrid, true));  yAxis.push(mkY(brkGrid, '爆破指数'));
 
   const allX = Array.from({length: nGrid}, (_, i) => i);
 

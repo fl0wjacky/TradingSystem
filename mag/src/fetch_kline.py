@@ -56,8 +56,11 @@ def fetch_binance(symbol: str, start_date: str) -> list:
     url = (f"https://api.binance.com/api/v3/klines?symbol={symbol}"
            f"&interval=1d&startTime={start_ms}&limit=1000")
     raw = json.loads(_http_get(url))
+    now_ms = datetime.now(timezone.utc).timestamp() * 1000
     out = []
     for k in raw:
+        if k[6] >= now_ms:   # 收盘时间(k[6])未到 = 当天K线还没走完，丢弃
+            continue
         d = datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime('%Y-%m-%d')
         out.append((d, float(k[1]), float(k[2]), float(k[3]), float(k[4])))
     return out
@@ -73,12 +76,15 @@ def fetch_yahoo(ticker: str, start_date: str) -> list:
     res = data['chart']['result'][0]
     ts = res['timestamp']
     q = res['indicators']['quote'][0]
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     out = []
     for i, t in enumerate(ts):
         o, h, l, c = q['open'][i], q['high'][i], q['low'][i], q['close'][i]
         if None in (o, h, l, c):
             continue
         d = datetime.fromtimestamp(t, tz=timezone.utc).strftime('%Y-%m-%d')
+        if d >= today:   # 当天(未收盘)K线，丢弃
+            continue
         out.append((d, float(o), float(h), float(l), float(c)))
     return out
 

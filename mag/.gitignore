@@ -71,3 +71,6 @@ mag_analysis_*.svg
 
 # User configuration (generated from example)
 config.yaml
+
+# Playwright 测试产物
+.playwright-mcp/

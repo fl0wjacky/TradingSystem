@@ -4,6 +4,7 @@ Mag API Server
 提供HTTP API接口用于导入和分析数据
 """
 from fastapi import FastAPI, HTTPException, Request, Depends,status
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
@@ -11,6 +12,7 @@ import ipaddress
 
 from src.mag_reanalyze import reanalyze_date_range_json
 from src.mag_system import import_and_analyze_json
+from src.gen_chart import load_data, render_page
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -90,10 +92,12 @@ async def root():
         "name": "Mag API",
         "version": "1.0.0",
         "docs": "/docs",
+        "chart": "/chart",
         "endpoints": {
             "import": "POST /api/v1/import",
             "reanalyze": "POST /api/v1/reanalyze",
-            "download": "GET /api/v1/download/{filename}"
+            "chart": "GET /chart",
+            "chart_data": "GET /chart/data"
         }
     }
 
@@ -179,6 +183,20 @@ async def reanalyze(request: ReanalyzeRequest):
             status_code=500,
             detail=f"分析过程出错: {str(e)}"
         )
+
+
+# ========== 可视化页面 ==========
+
+@app.get("/chart", response_class=HTMLResponse)
+async def chart_page():
+    """标的可视化页面。数据实时从数据库读取，运行 mag_system 导入后刷新即更新。"""
+    return render_page("fetch('/chart/data').then(r => r.json()).then(initChart);")
+
+
+@app.get("/chart/data")
+async def chart_data():
+    """可视化页面所需数据（实时读库）"""
+    return JSONResponse(load_data())
 
 
 # ========== 健康检查 ==========

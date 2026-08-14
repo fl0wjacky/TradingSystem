@@ -23,7 +23,7 @@ DB_PATH = Path(__file__).parent.parent / 'mag_data.db'
 OUT_PATH = Path(__file__).parent.parent / 'mag_chart.html'
 
 
-def load_data(db_path: Path) -> dict:
+def load_data(db_path: Path = DB_PATH) -> dict:
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         cdd_rows = conn.execute("""
@@ -138,7 +138,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </header>
 <div id="chart"></div>
 <script>
-const DATA = __DATA__;
+function initChart(DATA) {
 const chart = echarts.init(document.getElementById('chart'), 'dark');
 
 function buildOption(coin) {
@@ -257,10 +257,21 @@ window.addEventListener('resize', () => chart.resize());
 
 sel.value = DATA.coins.includes('BTC') ? 'BTC' : DATA.coins[0];
 render(sel.value);
+}
+__BOOTSTRAP__
 </script>
 </body>
 </html>
 """
+
+
+def render_page(bootstrap_js: str) -> str:
+    """用给定的数据引导代码渲染完整 HTML 页面。
+
+    - 静态文件：bootstrap 传入 `initChart(<内嵌JSON>)`
+    - API 实时：bootstrap 传入 `fetch('/chart/data')...then(initChart)`
+    """
+    return HTML_TEMPLATE.replace('__BOOTSTRAP__', bootstrap_js)
 
 
 def main():
@@ -270,8 +281,8 @@ def main():
         sys.exit(1)
 
     data = load_data(db_path)
-    html = HTML_TEMPLATE.replace('__DATA__', json.dumps(data, ensure_ascii=False))
-    OUT_PATH.write_text(html, encoding='utf-8')
+    bootstrap = 'initChart(' + json.dumps(data, ensure_ascii=False) + ');'
+    OUT_PATH.write_text(render_page(bootstrap), encoding='utf-8')
 
     n_coins = len(data['coins'])
     n_kl = sum(1 for c in data['coins'] if data['series'][c]['hasKline'])

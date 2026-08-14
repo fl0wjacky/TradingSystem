@@ -195,7 +195,13 @@ async def chart_page():
 
 @app.get("/chart/data")
 async def chart_data():
-    """可视化页面所需数据（实时读库）"""
+    """可视化页面所需数据（实时读库）。
+
+    页面加载时顺带触发 K 线刷新：若当天尚未更新，则在后台增量抓取并存库，
+    一天最多一次——后续访问者直接读已缓存的当日 K 线，不重复拉取。
+    """
+    from src.fetch_kline import refresh_if_stale
+    refresh_if_stale()
     return JSONResponse(load_data())
 
 

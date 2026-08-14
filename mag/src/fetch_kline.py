@@ -5,16 +5,17 @@
 - 加密：Binance 现货日线（免 key）
 - 美股/商品/亚股：Yahoo Finance（需未被限流的网络）
 
-按 coin_daily_data 的日期范围抓取，幂等写入（INSERT OR REPLACE）；
-单个标的抓取失败（下架/限流/网络）会被跳过并计入覆盖率报告，不中断整体。
+按 coin_daily_data 的日期范围**增量**抓取（每个标的从已有最新日期续拉），
+幂等写入（INSERT OR REPLACE）；单个标的失败会被跳过并计入覆盖率报告，不中断整体。
 
-用法:
-  python3 src/fetch_kline.py            # 抓取全部已映射标的
-  python3 src/fetch_kline.py BTC ETH    # 只抓指定标的
+两种用法：
+  - CLI：  python3 src/fetch_kline.py [BTC ETH ...]
+  - 页面：/chart 加载时调用 refresh_if_stale()，当天最多触发一次后台增量抓取
 """
 import json
 import sqlite3
 import sys
+import threading
 import time
 import urllib.request
 import urllib.error
@@ -26,6 +27,10 @@ from src.kline_sources import get_source
 DB_PATH = Path(__file__).parent.parent / 'mag_data.db'
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36')
+
+# 后台刷新的每日节流（内存标记 + 锁，保证一天只触发一次、且不并发重复抓取）
+_refresh_lock = threading.Lock()
+_refresh_marker = {'date': None}
 
 
 def _http_get(url: str, timeout: int = 12) -> bytes:
@@ -46,7 +51,6 @@ def ensure_table(conn):
 
 
 def fetch_binance(symbol: str, start_date: str) -> list:
-    """返回 [(date, o, h, l, c), ...]"""
     start_ms = int(datetime.strptime(start_date, '%Y-%m-%d')
                    .replace(tzinfo=timezone.utc).timestamp() * 1000)
     url = (f"https://api.binance.com/api/v3/klines?symbol={symbol}"
@@ -79,20 +83,18 @@ def fetch_yahoo(ticker: str, start_date: str) -> list:
     return out
 
 
-def main():
-    if not DB_PATH.exists():
-        print(f"错误：数据库不存在 - {DB_PATH}")
-        sys.exit(1)
-
-    only = set(sys.argv[1:])  # 指定标的（可选）
-
+def fetch_all(only=None, verbose=True) -> dict:
+    """抓取所有（或指定）已映射标的的 K 线，增量续拉，幂等写入。返回覆盖率摘要。"""
+    only = set(only) if only else None
     conn = sqlite3.connect(DB_PATH)
     ensure_table(conn)
 
-    # 数据库里的标的与整体起始日期
     coins = [r[0] for r in conn.execute(
         "SELECT DISTINCT coin FROM coin_daily_data ORDER BY coin")]
-    start_date = conn.execute("SELECT MIN(date) FROM coin_daily_data").fetchone()[0]
+    global_min = conn.execute("SELECT MIN(date) FROM coin_daily_data").fetchone()[0]
+    # 每个标的已有的最新 K 线日期（用于增量）
+    last_by_coin = dict(conn.execute(
+        "SELECT coin, MAX(date) FROM kline_data GROUP BY coin").fetchall())
 
     ok, skipped, no_source = [], [], []
     for coin in coins:
@@ -103,11 +105,9 @@ def main():
             no_source.append(coin)
             continue
         source, symbol = src
+        start = last_by_coin.get(coin) or global_min  # 增量起点
         try:
-            if source == 'binance':
-                bars = fetch_binance(symbol, start_date)
-            else:
-                bars = fetch_yahoo(symbol, start_date)
+            bars = (fetch_binance if source == 'binance' else fetch_yahoo)(symbol, start)
             if not bars:
                 skipped.append(f"{coin}(空)")
                 continue
@@ -116,19 +116,62 @@ def main():
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 [(d, coin, o, h, l, c) for (d, o, h, l, c) in bars])
             conn.commit()
-            ok.append(f"{coin}({source}:{len(bars)})")
-            print(f"  ✓ {coin:12s} {source:8s} {symbol:14s} {len(bars)} 根")
-            time.sleep(0.25)  # 温和限速
-        except (urllib.error.HTTPError, urllib.error.URLError, Exception) as e:
+            ok.append(coin)
+            if verbose:
+                print(f"  ✓ {coin:12s} {source:8s} {symbol:14s} {len(bars)} 根 (自 {start})")
+            time.sleep(0.2)
+        except Exception as e:
             skipped.append(f"{coin}({type(e).__name__})")
-            print(f"  ✗ {coin:12s} {source:8s} {symbol:14s} 跳过: {e}")
+            if verbose:
+                print(f"  ✗ {coin:12s} {source:8s} {symbol:14s} 跳过: {e}")
 
     conn.close()
-    print(f"\n成功 {len(ok)} · 跳过 {len(skipped)} · 无行情源 {len(no_source)}")
-    if skipped:
-        print("  跳过:", ", ".join(skipped))
-    if no_source:
-        print("  无源(仅场外/爆破):", ", ".join(no_source))
+    summary = {'ok': ok, 'skipped': skipped, 'no_source': no_source}
+    if verbose:
+        print(f"\n成功 {len(ok)} · 跳过 {len(skipped)} · 无行情源 {len(no_source)}")
+        if skipped:
+            print("  跳过:", ", ".join(skipped))
+        if no_source:
+            print("  无源(仅场外/爆破):", ", ".join(no_source))
+    return summary
+
+
+def _latest_kline_date() -> str:
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        ensure_table(conn)
+        row = conn.execute("SELECT MAX(date) FROM kline_data").fetchone()
+        conn.close()
+        return row[0]
+    except Exception:
+        return None
+
+
+def refresh_if_stale() -> bool:
+    """页面加载时调用：若 K 线不是最新，则当天触发一次后台增量抓取（不阻塞请求）。
+
+    - 一天最多触发一次（内存标记），即使有并发访问或抓取失败也不会重复拉取同一天。
+    - 已是最新（最新 K 线日期 >= 今天）则直接跳过。
+    返回是否启动了后台刷新。
+    """
+    today = datetime.now().strftime('%Y-%m-%d')
+    with _refresh_lock:
+        if _refresh_marker['date'] == today:
+            return False
+        maxk = _latest_kline_date()
+        if maxk and maxk >= today:
+            _refresh_marker['date'] = today
+            return False
+        _refresh_marker['date'] = today  # 标记已尝试，避免失败时反复触发
+    threading.Thread(target=lambda: fetch_all(verbose=False), daemon=True).start()
+    return True
+
+
+def main():
+    if not DB_PATH.exists():
+        print(f"错误：数据库不存在 - {DB_PATH}")
+        sys.exit(1)
+    fetch_all(only=sys.argv[1:] or None, verbose=True)
 
 
 if __name__ == '__main__':

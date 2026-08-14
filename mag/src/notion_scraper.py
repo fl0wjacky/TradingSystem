@@ -249,10 +249,16 @@ class NotionScraper:
         # hood 场外指数1089爆破114
         # 布伦特原油 场外指数798爆破指数-25
         # circle 场外指数1125 爆破指数261（场外指数和爆破之间有空格）
-        match2 = re.match(r'^([A-Za-z\u4e00-\u9fa5]+)\s+场外指数?\s*(\d+)\s*爆破(?:指数)?(-?\d+)', line)
+        # 白银 Xag场外指数1510 爆破指数247（名字后带字母标识）；地产 （...） 场外指数X 爆破指数-Y（括号+负爆破）
+        match2 = re.match(r'^([A-Za-z一-龥$]+(?:\s+[A-Za-z]+)?(?:\s*（[^）)]+[）)])?)\s*场外指数?\s*(\d+)\s*爆破(?:指数)?\s*(-?\d+)', line)
         if match2:
-            # 向下查找进退场期信息
-            phase_info = self._find_phase_info(lines, start_idx + 1)
+            # 进退场期：优先看同一行（名字+场外+爆破+进退场全挤一行），否则往下找
+            same_line_phase = re.search(r'(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line[match2.end():])
+            if same_line_phase:
+                phase_info = {'phase_type': same_line_phase.group(1) + '期',
+                              'phase_days': int(same_line_phase.group(2))}
+            else:
+                phase_info = self._find_phase_info(lines, start_idx + 1)
             if phase_info:
                 return self._build_coin_data(
                     coin_name=match2.group(1),

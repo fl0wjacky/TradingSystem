@@ -19,11 +19,28 @@ from src.notion_scraper import NotionScraper
 
 DEFAULT_HTML = Path(__file__).parent.parent / 'flow的笔记.html'
 
-# 含「场外指数<数字>」或「场外指<数字>」(缺数)的行 = 一个预期数据条目
-EXPECT_RE = re.compile(r'场外指数?\s*-?\d')
 # 从数据行里取一个用于展示的数值，判断是否已被解析
 OFFCHAIN_RE = re.compile(r'场外指数?\s*(\d+)')
 DATE_RE = re.compile(r'^(?:\d{4}\.)?\d{1,2}\.\d{1,2}$')
+# 正文/策略/区域标题里也常出现「场外指数」，需排除，避免误报
+_PROSE_RE = re.compile(r'流动性|止盈|分批|期间|概况|提醒|复盘|问答|策略|建仓|对冲|下降|上涨|突破')
+
+
+def is_data_line(l: str) -> bool:
+    """判断一行是否为「标的数据条目」（名字 … 场外指数<数字> …），排除正文/标题。"""
+    if not l or l[0] in '&※♤$$$':
+        return False
+    if l.startswith('场外'):          # 以"场外指数"开头 = 孤立续行/正文，非条目
+        return False
+    m = re.search(r'场外指数?\s*\d', l)
+    if not m:
+        return False
+    prefix = l[:m.start()].strip()    # 场外指数前必须有个不太长的币名
+    if not prefix or len(prefix) > 12:
+        return False
+    if _PROSE_RE.search(l):
+        return False
+    return True
 
 
 def memo_lines(memo):
@@ -64,7 +81,7 @@ def main():
         total_notes += 1
 
         # 预期数据行
-        expect_lines = [l for l in lines if EXPECT_RE.search(l)]
+        expect_lines = [l for l in lines if is_data_line(l)]
         total_expect += len(expect_lines)
 
         # 实际解析
@@ -79,6 +96,9 @@ def main():
             parsed_vals = {p['offchain_index'] for p in parsed}
             missed = []
             for l in expect_lines:
+                # 跳过忽略名单里的标的（如"美股 OTC"，本就不导入）
+                if any(l.startswith(name) for name in scraper.ignore_names):
+                    continue
                 m = OFFCHAIN_RE.search(l)
                 val = int(m.group(1)) if m else None
                 if val is None or val not in parsed_vals:
@@ -87,11 +107,10 @@ def main():
                 ts = memo.find('div', class_='time')
                 gap_notes.append((ts.get_text(strip=True) if ts else '?', drow, missed))
 
-    print(f"巡检文件：{html_path.name}")
-    print(f"笔记数 {total_notes} · 预期数据条目 {total_expect} · 解析入库 {total_parsed} "
-          f"· 覆盖率 {total_parsed / total_expect * 100:.1f}%")
     n_missed_lines = sum(len(m) for _, _, m in gap_notes)
-    print(f"疑似漏解析：{len(gap_notes)} 条笔记 / {n_missed_lines} 行\n")
+    print(f"巡检文件：{html_path.name}")
+    print(f"#Mag 笔记 {total_notes} 条 · 已解析标的记录 {total_parsed} 条")
+    print(f"疑似漏解析：{len(gap_notes)} 条笔记 / {n_missed_lines} 行（下方逐行列出，供人工核对）\n")
 
     if gap_notes:
         print("明细（时间 · 日期行 · 未解析的数据行）：")

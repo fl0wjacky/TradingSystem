@@ -746,6 +746,22 @@ class MagAnalyzer:
         # 返回最近的日期（即当前小节的起点）
         return max(candidates)
 
+    @staticmethod
+    def _break_trend_slope(values: List[float]) -> float:
+        """对时间正序序列做最小二乘线性回归，返回斜率。
+
+        斜率 > 0 表示整体上升，< 0 表示整体下降，0 表示无趋势。
+        用全部数据点拟合，相比"前后半段均值比较"对尖峰/噪声更稳健。
+        """
+        n = len(values)
+        if n < 2:
+            return 0.0
+        mean_x = (n - 1) / 2
+        mean_y = sum(values) / n
+        numerator = sum((i - mean_x) * (v - mean_y) for i, v in enumerate(values))
+        denominator = sum((i - mean_x) ** 2 for i in range(n))
+        return numerator / denominator if denominator else 0.0
+
     def _detect_special_nodes(self, coin: str, date: str, coin_data: Dict):
         """
         检测并保存特殊关键节点
@@ -849,18 +865,13 @@ class MagAnalyzer:
                         # 检查是否有任何一次爆破指数超过200
                         has_break_200 = any(d.get('break_index', 0) >= 200 for d in section_data)
 
-                        # 计算爆破指数的移动平均趋势
+                        # 用线性回归斜率判断爆破指数趋势（section_data 已按时间正序）
                         break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
 
                         if len(break_indices) >= 2:
-                            # 简单判断：前半部分平均值 vs 后半部分平均值
-                            mid = len(break_indices) // 2
-                            first_half_avg = sum(break_indices[:mid]) / mid
-                            second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+                            is_declining = self._break_trend_slope(break_indices) < 0
 
-                            is_declining = second_half_avg < first_half_avg
-
-                            # 如果未破200且均值下降
+                            # 如果未破200且趋势下降
                             if not has_break_200 and is_declining:
                                 self.db.insert_special_node(
                                     date, coin, 'quality_warning_entry',
@@ -895,18 +906,13 @@ class MagAnalyzer:
                         # 检查是否有任何一次爆破指数跌破0
                         has_break_0 = any(d.get('break_index', 0) < 0 for d in section_data)
 
-                        # 计算爆破指数的移动平均趋势（对称于进场期）
+                        # 用线性回归斜率判断爆破指数趋势（对称于进场期，section_data 已按时间正序）
                         break_indices = [d.get('break_index', 0) for d in section_data if d.get('break_index') is not None]
 
                         if len(break_indices) >= 2:
-                            # 简单判断：前半部分平均值 vs 后半部分平均值
-                            mid = len(break_indices) // 2
-                            first_half_avg = sum(break_indices[:mid]) / mid
-                            second_half_avg = sum(break_indices[mid:]) / (len(break_indices) - mid)
+                            is_rising = self._break_trend_slope(break_indices) > 0
 
-                            is_rising = second_half_avg > first_half_avg
-
-                            # 如果未跌破0且均值上升
+                            # 如果未跌破0且趋势上升
                             if not has_break_0 and is_rising:
                                 self.db.insert_special_node(
                                     date, coin, 'quality_warning_exit',

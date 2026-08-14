@@ -273,7 +273,7 @@ class NotionScraper:
         # 地产 （指导国内购置地产房产 大周期只月更）
         # 场外指数1764 爆破238
         # 进场期第3月
-        is_chinese_coin = re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）)]+[）)])?$', line)
+        is_chinese_coin = re.match(r'^[\u4e00-\u9fa5]+(?:\s*（[^）)]+[）)])?$', line)
         is_english_coin = re.match(r'^[\$]?[A-Za-z]+$', line)
 
         if is_english_coin or is_chinese_coin:
@@ -292,7 +292,7 @@ class NotionScraper:
 
                 # 如果下一行也是纯中文，说明当前行是说明文字，跳过
                 # 这避免了"数据拟合平滑还需要时间"+"台积电"这种情况
-                if next_non_empty and re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）)]+[）)])?$', next_non_empty):
+                if next_non_empty and re.match(r'^[\u4e00-\u9fa5]+(?:\s*（[^）)]+[）)])?$', next_non_empty):
                     return None  # 跳过此行
 
             # 向下查找完整信息
@@ -332,6 +332,23 @@ class NotionScraper:
                             break_index=break_info,
                             phase_type=phase_info['phase_type'],
                             phase_days=phase_info['phase_days'],
+                            shelin_point=self._find_shelin(lines, start_idx),
+                            is_approaching=self._find_approaching(lines, start_idx),
+                            date=date,
+                            in_us_stock_section=in_us_stock_section
+                        )
+
+                # 查找：场外指数XXX + 进退场期同一行，爆破指数在其它行（期权波动率等格式）
+                off_phase = re.match(r'场外指数?\s*(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', next_line)
+                if off_phase:
+                    break_info = self._find_break_index(lines, start_idx + 1)
+                    if break_info is not None:
+                        return self._build_coin_data(
+                            coin_name=line.strip('$'),
+                            offchain_index=int(off_phase.group(1)),
+                            break_index=break_info,
+                            phase_type=off_phase.group(2) + '期',
+                            phase_days=int(off_phase.group(3)),
                             shelin_point=self._find_shelin(lines, start_idx),
                             is_approaching=self._find_approaching(lines, start_idx),
                             date=date,

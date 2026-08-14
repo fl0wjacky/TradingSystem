@@ -781,9 +781,10 @@ class MagAnalyzer:
         break_index = coin_data.get('break_index', 0)
         is_approaching = coin_data.get('is_approaching', 0)
         is_us_stock = coin_data.get('is_us_stock', 0)
+        is_cn_stock = coin_data.get('is_cn_stock', 0)
 
-        # 检查周期：币种7次，美股14次
-        check_count = 14 if is_us_stock else 7
+        # 检查周期：美股与国内A股 14 次，其它币种 7 次
+        check_count = 14 if (is_us_stock or is_cn_stock) else 7
 
         # 1. 提示逼近
         if is_approaching == 1:

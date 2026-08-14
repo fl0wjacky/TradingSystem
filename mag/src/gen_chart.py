@@ -112,6 +112,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   select, input[type=text] { background: #1a1d26; color: #eaecef; border: 1px solid #363b48;
            border-radius: 6px; padding: 6px 10px; font-size: 14px; }
   select { min-width: 150px; } input[type=text] { width: 130px; }
+  button { background: #2a3550; color: #cdd7ee; border: 1px solid #3a4a6b;
+           border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+  button:hover { background: #354063; }
   .legend { font-size: 12px; color: #8b91a0; display: flex; gap: 14px; flex-wrap: wrap; }
   .legend b { color: #b9bec9; font-weight: 600; }
   .sw { display: inline-block; width: 22px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
@@ -125,6 +128,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <h1>Mag 标的可视化</h1>
   <select id="coinSel"></select>
   <input type="text" id="filter" placeholder="筛选标的…">
+  <button id="shareBtn">📷 分享</button>
   <span class="tag" id="kindTag"></span>
   <span class="tag nokl" id="klTag"></span>
   <span class="legend">
@@ -254,6 +258,35 @@ document.getElementById('filter').addEventListener('input', e => {
   render(sel.value);
 });
 window.addEventListener('resize', () => chart.resize());
+
+// 分享：把当前图表合成为带标题的分享卡片 PNG 并下载
+function exportImage() {
+  const coin = sel.value, s = DATA.series[coin];
+  const chartUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0f1117' });
+  const img = new Image();
+  img.onload = () => {
+    const headerH = 128;  // 2x 像素空间
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height + headerH;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#0f1117'; ctx.fillRect(0, 0, cv.width, cv.height);
+    const lastDate = s.dates[s.dates.length - 1], firstDate = s.dates[0];
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#eaecef';
+    ctx.font = 'bold 40px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.fillText(coin + '　' + s.kind, 40, 60);
+    ctx.fillStyle = '#8b91a0';
+    ctx.font = '26px -apple-system, "PingFang SC", sans-serif';
+    ctx.fillText('Mag 场外体系 · ' + firstDate + ' ~ ' + lastDate, 40, 100);
+    ctx.drawImage(img, 0, headerH);
+    const a = document.createElement('a');
+    a.download = 'Mag_' + coin + '_' + lastDate + '.png';
+    a.href = cv.toDataURL('image/png');
+    a.click();
+  };
+  img.src = chartUrl;
+}
+document.getElementById('shareBtn').addEventListener('click', exportImage);
 
 sel.value = DATA.coins.includes('BTC') ? 'BTC' : DATA.coins[0];
 render(sel.value);

@@ -590,6 +590,11 @@ class NotionScraper:
             if '原油' in coin_name_upper or 'OIL' in coin_name_upper or '布伦特' in coin_name_upper:
                 coin_name_upper = 'OIL'
 
+            # 大宗商品统一归为美股/大宗（顶层），不依赖"大宗$美股区"区域标记是否被识别，
+            # 避免个别笔记漏识别区域时被误标为山寨币
+            if coin_name_upper in ('GOLD', '白银', 'OIL', '铜'):
+                is_us_stock = 1
+
         # 判断是否为龙头币（国内A股不是龙头币）
         is_dragon_leader = 0
         if not is_cn_stock:

@@ -34,6 +34,8 @@ class NotionScraper:
             '创业板',    # 创业板指数
             '地产',      # 国内地产（大周期月更）
         ]
+        # 忽略名单：笔记里的说明句/已弃用聚合名，曾被误当成标的录入，导入时直接跳过
+        self.ignore_names = {'外部性在所有币种中表现最好', '美股 OTC', '美股OTC', '国内股OTC'}
 
     def fetch_data(self) -> str:
         """
@@ -492,6 +494,10 @@ class NotionScraper:
                         is_approaching: int, date: str, in_us_stock_section: bool = False, in_cn_stock_section: bool = False) -> Optional[Dict]:
         """构建币种数据字典"""
         if break_index is None:
+            return None
+
+        # 忽略名单：说明句/已弃用聚合名，不作为标的录入
+        if coin_name.strip().strip('$') in self.ignore_names:
             return None
 
         # 清理币名（保留中文全称）

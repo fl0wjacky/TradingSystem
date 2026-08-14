@@ -33,6 +33,8 @@ class NotionScraper:
             '深证',      # 深证指数
             '创业板',    # 创业板指数
         ]
+        # 大宗商品关键词：即使名字含"国内"（如"国内生猪"）也归为商品/顶层标的，不判为国内A股
+        self.commodity_keywords = ['生猪', '黄金', '白银', '原油', '铜']
 
     def fetch_data(self) -> str:
         """
@@ -191,7 +193,7 @@ class NotionScraper:
         # btc 场外指数1164 场外进场期第1天（场外指数和进场期之间有空格）
         # Ondo 场外指数526场外退场第36天（无"期"字）
         # 白银 Xag场外指数1659场外进场68天（混合大小写标识）
-        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数?\s*(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
+        match1 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:\s*（[^）)]+[）)])?)\s*场外指数?\s*(\d+)\s*(?:场外)?(进场|退场)期?第?(\d+)(天|月)', line)
         if match1:
             # 统一格式：补充"期"字
             phase_type = match1.group(3) + '期'
@@ -212,7 +214,7 @@ class NotionScraper:
         # 场外进场期第7天
         # 爆破指数206
         # 白银 Xag场外指数1659（混合大小写标识）
-        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:（[^）]+）)?)\s*场外指数?\s*(\d+)$', line)
+        match1_5 = re.match(r'^([A-Za-z\u4e00-\u9fa5$]+(?:\s+[A-Za-z]+)?(?:\s*（[^）)]+[）)])?)\s*场外指数?\s*(\d+)$', line)
         if match1_5:
             # 向下查找进退场期和爆破指数
             phase_info = self._find_phase_info(lines, start_idx + 1)
@@ -270,7 +272,7 @@ class NotionScraper:
         # 地产 （指导国内购置地产房产 大周期只月更）
         # 场外指数1764 爆破238
         # 进场期第3月
-        is_chinese_coin = re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）]+）)?$', line)
+        is_chinese_coin = re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）)]+[）)])?$', line)
         is_english_coin = re.match(r'^[\$]?[A-Za-z]+$', line)
 
         if is_english_coin or is_chinese_coin:
@@ -289,7 +291,7 @@ class NotionScraper:
 
                 # 如果下一行也是纯中文，说明当前行是说明文字，跳过
                 # 这避免了"数据拟合平滑还需要时间"+"台积电"这种情况
-                if next_non_empty and re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）]+）)?$', next_non_empty):
+                if next_non_empty and re.match(r'^[\u4e00-\u9fa5]+(?:\s+（[^）)]+[）)])?$', next_non_empty):
                     return None  # 跳过此行
 
             # 向下查找完整信息
@@ -337,7 +339,7 @@ class NotionScraper:
 
         # === 格式4: 特殊格式（地产等）===
         # 地产 场外指数1764 爆破238 进场期第3月
-        match4 = re.match(r'^([^ ]+)\s+(?:（[^）]+）\s+)?场外指数?\s*(\d+)\s+爆破(?:指数)?(\d+)', line)
+        match4 = re.match(r'^([^ ]+)\s+(?:（[^）)]+[）)]\s+)?场外指数?\s*(\d+)\s+爆破(?:指数)?(\d+)', line)
         if match4:
             # 验证币种名不是"进/退场期第X天"格式
             coin_name_candidate = match4.group(1)
@@ -498,14 +500,15 @@ class NotionScraper:
         coin_name_upper = coin_name.upper().strip('$')
 
         # 移除中文括号内容（用于分类判断）
-        coin_name_for_check = re.sub(r'（[^）]+）', '', original_coin_name).strip()
-        coin_name_upper = re.sub(r'（[^）]+）', '', coin_name_upper).strip()
+        coin_name_for_check = re.sub(r'（[^）)]+[）)]', '', original_coin_name).strip()
+        coin_name_upper = re.sub(r'（[^）)]+[）)]', '', coin_name_upper).strip()
 
         # 特殊处理：优先判断国内A股（避免被误标记为美股）
         # 使用关键词列表判断，支持多种命名模式
         # 注意：判断时使用去除括号后的名称，避免描述信息干扰
         is_cn_stock = 0
-        if any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
+        is_commodity = any(kw in coin_name_for_check for kw in self.commodity_keywords)
+        if not is_commodity and any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
             is_cn_stock = 1
             coin_name_upper = coin_name_for_check  # 保留中文全称（已去除括号描述）
             # 作者偶尔会在"国内机器人/国内人工智能"后加 etf 后缀，归一为无后缀版避免标的分裂
@@ -556,6 +559,10 @@ class NotionScraper:
             # 特殊处理：原油
             if '原油' in coin_name_upper or 'OIL' in coin_name_upper or '布伦特' in coin_name_upper:
                 coin_name_upper = 'OIL'
+
+            # 特殊处理：生猪（预测CPI的商品，归一化去掉"国内"前缀，避免与A股混淆）
+            if '生猪' in coin_name_upper:
+                coin_name_upper = '生猪'
 
         # 判断是否为龙头币（国内A股不是龙头币）
         is_dragon_leader = 0

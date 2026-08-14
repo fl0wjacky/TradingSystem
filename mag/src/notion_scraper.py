@@ -384,7 +384,10 @@ class NotionScraper:
                           phase_days: int, lines: List[str], start_idx: int, date: str,
                           in_us_stock_section: bool = False, in_cn_stock_section: bool = False) -> Dict:
         """从标准格式中提取完整币种数据"""
-        break_index = self._find_break_index(lines, start_idx + 1)
+        # 优先看名字行本身是否含爆破指数（名字/场外/进退场/爆破全挤一行的写法）；
+        # 否则按常规从下一行往下找
+        same_line = re.search(r'爆破(?:指数)?\s*(-?\d+)', lines[start_idx])
+        break_index = int(same_line.group(1)) if same_line else self._find_break_index(lines, start_idx + 1)
         shelin_point = self._find_shelin(lines, start_idx)
         is_approaching = self._find_approaching(lines, start_idx)
 

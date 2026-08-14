@@ -32,9 +32,8 @@ class NotionScraper:
             '上证',      # 上证指数
             '深证',      # 深证指数
             '创业板',    # 创业板指数
+            '地产',      # 国内地产（大周期月更）
         ]
-        # 大宗商品关键词：即使名字含"国内"（如"国内生猪"）也归为商品/顶层标的，不判为国内A股
-        self.commodity_keywords = ['生猪', '黄金', '白银', '原油', '铜']
 
     def fetch_data(self) -> str:
         """
@@ -507,8 +506,7 @@ class NotionScraper:
         # 使用关键词列表判断，支持多种命名模式
         # 注意：判断时使用去除括号后的名称，避免描述信息干扰
         is_cn_stock = 0
-        is_commodity = any(kw in coin_name_for_check for kw in self.commodity_keywords)
-        if not is_commodity and any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
+        if any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
             is_cn_stock = 1
             coin_name_upper = coin_name_for_check  # 保留中文全称（已去除括号描述）
             # 作者偶尔会在"国内机器人/国内人工智能"后加 etf 后缀，归一为无后缀版避免标的分裂
@@ -559,10 +557,6 @@ class NotionScraper:
             # 特殊处理：原油
             if '原油' in coin_name_upper or 'OIL' in coin_name_upper or '布伦特' in coin_name_upper:
                 coin_name_upper = 'OIL'
-
-            # 特殊处理：生猪（预测CPI的商品，归一化去掉"国内"前缀，避免与A股混淆）
-            if '生猪' in coin_name_upper:
-                coin_name_upper = '生猪'
 
         # 判断是否为龙头币（国内A股不是龙头币）
         is_dragon_leader = 0

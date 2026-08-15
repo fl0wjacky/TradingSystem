@@ -100,7 +100,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mag 标的可视化</title>
+<title>Mag 场外体系</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <style>
   * { box-sizing: border-box; }
@@ -125,7 +125,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <h1>Mag 标的可视化</h1>
+  <h1>Mag 场外体系</h1>
   <select id="coinSel"></select>
   <input type="text" id="filter" placeholder="筛选标的…">
   <button id="shareBtn">📷 分享</button>
@@ -134,7 +134,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <span class="legend">
     <span><span class="sw" style="background:rgba(46,160,88,.22)"></span>进场期</span>
     <span><span class="sw" style="background:rgba(210,70,70,.22)"></span>退场期</span>
-    <span><b>K线</b> 涨绿跌红</span>
+    <span><b>K线</b> 绿涨红跌</span>
     <span><b>场外</b> 1000 均衡线</span>
     <span><b>爆破</b> 200 / 0 阈值</span>
     <span>▲ 逼近</span>
@@ -159,14 +159,14 @@ function buildOption(coin) {
     itemStyle: { color: '#e0a030' }
   }));
 
-  // 面板布局：有K线=3栏，无K线=2栏
+  // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致（均为 4%）
   const grids = kl ? [
-      { left: 62, right: 58, top: 34, height: '38%' },
-      { left: 62, right: 58, top: '52%', height: '20%' },
-      { left: 62, right: 58, top: '76%', height: '17%' }
+      { left: 62, right: 58, top: '4%',  height: '44%' },
+      { left: 62, right: 58, top: '52%', height: '18%' },
+      { left: 62, right: 58, top: '74%', height: '18%' }
     ] : [
-      { left: 62, right: 58, top: 34, height: '38%' },
-      { left: 62, right: 58, top: '56%', height: '34%' }
+      { left: 62, right: 58, top: '4%',  height: '48%' },
+      { left: 62, right: 58, top: '56%', height: '36%' }
     ];
   const nGrid = grids.length;
   const offGrid = kl ? 1 : 0, brkGrid = kl ? 2 : 1;

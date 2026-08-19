@@ -1,5 +1,13 @@
 # Mag 现货提示系统 - 更新日志
 
+## v2.6.1 (2026-08-19)
+
+### 新增功能 ✨
+
+- **美股/商品/亚股 K 线改用 Binance 合约**：Binance 合约（fapi）提供大量代币化交易对（GOLD→XAUUSDT、NASDAQ→QQQUSDT、GOOG→GOOGLUSDT、NVDA→NVDAUSDT、白银→XAGUSDT、铜→COPPERUSDT、原油→CLUSDT、海力士→SKHYNIXUSDT、三星→SAMSUNGUSDT、台积电→TSMUSDT 等），免 key、不限流，替代一直被限流的 Yahoo。含真实 K 线的标的从 29 增至 52。
+  - `kline_sources`：`YAHOO` 映射改为 `STOCK_FUTURES`（`binance_futures` 源）；`fetch_binance` 增加 `base` 参数，合约走 fapi 基址
+  - **限制**：这些代币化合约上线较晚，历史多数只回溯到 2026 年（黄金最长到 2025-12，海力士至 2026-06），更早日期无 K 线；场外/爆破线仍全程完整
+
 ## v2.6.0 (2026-08-15)
 
 > **本版概述**：新增标的可视化页面（进/退场期 + 场外/爆破 + 真实日 K 线，`/chart` 实时页与静态导出、分享成图）与解析巡检工具；系统性修复多种笔记写法的解析漏洞（缺"数"、混合括号、名字带括号单独行、爆破/进退场同行、白银/期权波动率等）并新增巡检兜底；校正大宗商品与国内 A 股的分类；质量劣化判定改用线性回归斜率、退场期补对称条件、国内 A 股统一 14 次周期。

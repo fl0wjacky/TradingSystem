@@ -186,7 +186,9 @@ function buildOption(coin) {
   const allX = Array.from({length: nGrid}, (_, i) => i);
 
   if (kl) {
-    series.push({ name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: s.ohlc,
+    // 蜡烛图不接受 null 数据项(会读 null.value 报错),空档用 ECharts 空值标记 '-'
+    series.push({ name: 'K线', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0,
+      data: s.ohlc.map(x => x || '-'),
       itemStyle: { color: '#26a06a', color0: '#d24646', borderColor: '#26a06a', borderColor0: '#d24646' },
       markArea: { silent: true, data: areas } });
   }

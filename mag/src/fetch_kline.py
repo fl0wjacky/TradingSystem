@@ -50,10 +50,11 @@ def ensure_table(conn):
     """)
 
 
-def fetch_binance(symbol: str, start_date: str) -> list:
+def fetch_binance(symbol: str, start_date: str, base: str = 'https://api.binance.com/api/v3') -> list:
+    """base 默认现货；传 fapi 基址即抓合约（代币化美股/商品/亚股）。两者 K 线格式一致。"""
     start_ms = int(datetime.strptime(start_date, '%Y-%m-%d')
                    .replace(tzinfo=timezone.utc).timestamp() * 1000)
-    url = (f"https://api.binance.com/api/v3/klines?symbol={symbol}"
+    url = (f"{base}/klines?symbol={symbol}"
            f"&interval=1d&startTime={start_ms}&limit=1000")
     raw = json.loads(_http_get(url))
     now_ms = datetime.now(timezone.utc).timestamp() * 1000
@@ -113,7 +114,12 @@ def fetch_all(only=None, verbose=True) -> dict:
         source, symbol = src
         start = last_by_coin.get(coin) or global_min  # 增量起点
         try:
-            bars = (fetch_binance if source == 'binance' else fetch_yahoo)(symbol, start)
+            if source == 'binance':
+                bars = fetch_binance(symbol, start)
+            elif source == 'binance_futures':
+                bars = fetch_binance(symbol, start, base='https://fapi.binance.com/fapi/v1')
+            else:
+                bars = fetch_yahoo(symbol, start)
             if not bars:
                 skipped.append(f"{coin}(空)")
                 continue

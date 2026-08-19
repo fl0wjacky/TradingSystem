@@ -159,14 +159,14 @@ function buildOption(coin) {
     itemStyle: { color: '#e0a030' }
   }));
 
-  // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致（均为 4%）
+  // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致且留足空间放轴名（均为 6%）
   const grids = kl ? [
-      { left: 62, right: 58, top: '4%',  height: '44%' },
-      { left: 62, right: 58, top: '52%', height: '18%' },
-      { left: 62, right: 58, top: '74%', height: '18%' }
+      { left: 62, right: 58, top: '3.5%', height: '42.5%' },
+      { left: 62, right: 58, top: '52%',  height: '17%' },
+      { left: 62, right: 58, top: '75%',  height: '17%' }
     ] : [
-      { left: 62, right: 58, top: '4%',  height: '48%' },
-      { left: 62, right: 58, top: '56%', height: '36%' }
+      { left: 62, right: 58, top: '3.5%',  height: '46%' },
+      { left: 62, right: 58, top: '55.5%', height: '36.5%' }
     ];
   const nGrid = grids.length;
   const offGrid = kl ? 1 : 0, brkGrid = kl ? 2 : 1;

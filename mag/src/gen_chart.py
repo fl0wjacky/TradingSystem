@@ -131,6 +131,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   #btBar .trades span { display: inline-block; margin-right: 12px; }
   #btBar .trades .b { color: #3fbf6a; } #btBar .trades .s { color: #e06666; }
   #btBar .err { color: #e06666; }
+  #btBar .note { flex-basis: 100%; color: #6a7180; font-size: 11px; line-height: 1.5; }
+  #btBar .note b { color: #8b91a0; font-weight: 600; }
   #btBar .x { margin-left: auto; cursor: pointer; color: #8b91a0; }
   .legend { font-size: 12px; color: #8b91a0; display: flex; gap: 14px; flex-wrap: wrap; }
   .legend b { color: #b9bec9; font-weight: 600; }
@@ -362,7 +364,10 @@ async function runBacktest() {
       '<span>最大回撤 <b class="dn">' + body.max_drawdown.toFixed(2) + '%</b></span>' +
       '<span>交易 <b>' + body.trades.length + '</b> 笔</span>' +
       '<span class="x" id="btClose" title="清除回测">✕</span>' +
-      (body.trades.length ? '<span class="trades">' + trades + '</span>' : '<span class="trades">期间无交易</span>'));
+      (body.trades.length ? '<span class="trades">' + trades + '</span>' : '<span class="trades">期间无交易</span>') +
+      '<span class="note"><b>价格</b>：成交价取当日 K 线中间价 (开+收)/2，只在有 K 线的日期成交，无 K 线的节点跳过；资金曲线按每日中间价估值。' +
+      '　<b>仓位</b>：买 20%/30%/40% 以下单当时的账户总市值（现金 + 持仓市值）为基数，不按初始资金、不累计；' +
+      '超出剩余现金时只买剩余现金，现金用完后的买入信号跳过，因此多次分批名义比例可超 100%，实际投入不会超过账户资金。</span>');
     document.getElementById('btClose').addEventListener('click', () => clearBacktest(true));
     chart.setOption(buildOption(coin), true);
     // 视窗对准回测区间

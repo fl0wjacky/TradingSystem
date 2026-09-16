@@ -9,6 +9,9 @@
   - 底部面板：爆破指数（含 200、0 关键阈值线）
   - 进场期/退场期以背景色块贯穿所有面板
   - 逼近日以标记点提示
+  - 关键节点（进/退场期第1天、爆破跌破200、爆破负转正）以彩色圆点标在场外指数线上，
+    特殊节点以小灰点标出；悬停任一日期时列出当天所有节点的详情（类型、质量、修正后涨幅、
+    参考节点、各项修正），便于复盘；回测的买卖点也落在这些节点上
   - X 轴为「K线交易日 ∪ 场外数据日」的并集，三面板联动缩放与十字光标
   - 回测（仅 API 实时页）：选日期范围与性格，按真实 K 线中间价 (开+收)/2 成交，
     买卖点标在 K 线上、资金曲线叠加在 K 线面板右轴，顶部条显示收益/回撤/交易明细
@@ -40,6 +43,27 @@ def load_data(db_path: Path = DB_PATH) -> dict:
                 kline.setdefault(r[1], {})[r[0]] = (r[2], r[3], r[4], r[5])  # o,h,l,c
         except sqlite3.OperationalError:
             pass
+        # 关键节点（analysis_results）与特殊节点（special_nodes），按 coin -> date 归组
+        nodes: dict = {}
+        for r in conn.execute("""
+            SELECT date, coin, node_type, quality_rating, final_percentage,
+                   reference_node_date, reference_offchain_index, current_offchain_index,
+                   change_percentage, phase_correction, us_stock_correction,
+                   divergence_correction, break_index_correction, approaching_correction
+            FROM analysis_results ORDER BY coin, date, id"""):
+            corr = {k: v for k, v in (('相变', r[9]), ('美股', r[10]), ('背离', r[11]),
+                                      ('爆破', r[12]), ('逼近', r[13])) if v}
+            nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
+                'kind': 'key', 'type': r['node_type'], 'quality': r['quality_rating'],
+                'final_pct': r['final_percentage'], 'ref_date': r['reference_node_date'],
+                'ref_idx': r['reference_offchain_index'], 'cur_idx': r['current_offchain_index'],
+                'raw_pct': r['change_percentage'], 'corr': corr,
+            })
+        for r in conn.execute(
+                "SELECT date, coin, node_type, description FROM special_nodes ORDER BY coin, date, id"):
+            nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
+                'kind': 'special', 'type': r['node_type'], 'desc': r['description'] or r['node_type'],
+            })
 
     by_coin: dict = {}
     for r in cdd_rows:
@@ -90,6 +114,7 @@ def load_data(db_path: Path = DB_PATH) -> dict:
             'phase': phase, 'phase_days': phase_days,
             'ohlc': ohlc, 'hasKline': any(x is not None for x in ohlc),
             'approaching': approaching, 'segments': segments,
+            'nodes': nodes.get(coin, {}),  # date -> [节点...]
         }
 
     order = {'BTC': 0, '龙头币': 1, '美股/大宗': 2, '国内A股': 3, '山寨币': 4}
@@ -171,6 +196,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <span><b>场外</b> 1000 均衡线</span>
     <span><b>爆破</b> 200 / 0 阈值</span>
     <span>▲ 逼近</span>
+    <span><b>节点</b> <span style="color:#3fbf6a">●</span>进场 <span style="color:#e06666">●</span>退场 <span style="color:#f0a040">●</span>跌破200 <span style="color:#b06fd0">●</span>负转正 <span style="color:#8b91a0">·</span>特殊</span>
     <span><span class="sw" style="background:#e0c060"></span>资金曲线</span>
   </span>
 </header>
@@ -182,6 +208,34 @@ const chart = echarts.init(document.getElementById('chart'), 'dark');
 const BT = { coin: null, result: null };   // 当前回测结果（仅对应 BT.coin）
 const ACTION_TXT = { buy_full: '全仓', buy_30: '买30%', buy_20: '买20%', buy_40: '买40%',
   buy_all_remaining: '买剩余', sell_50: '卖50%', sell_all: '清仓' };
+const NODE_TXT = { enter_phase_day1: '进场期第1天', exit_phase_day1: '退场期第1天',
+  break_200: '爆破跌破200', break_0: '爆破负转正' };
+const NODE_COLOR = { enter_phase_day1: '#3fbf6a', exit_phase_day1: '#e06666',
+  break_200: '#f0a040', break_0: '#b06fd0' };
+const QUALITY_COLOR = { '优质': '#3fbf6a', '一般': '#e0c060', '劣质': '#e06666' };
+const fmtPct = v => (v === null || v === undefined) ? '' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+// 一天的节点列表渲染为 tooltip 片段
+function nodesHtml(list) {
+  if (!list || !list.length) return '';
+  let h = '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #363b48">';
+  list.forEach(n => {
+    if (n.kind === 'key') {
+      const qc = QUALITY_COLOR[n.quality] || '#8b91a0';
+      h += '<span style="color:' + (NODE_COLOR[n.type] || '#8b91a0') + '">●</span> <b>' + (NODE_TXT[n.type] || n.type) + '</b>　' +
+        '<span style="color:' + qc + '">' + (n.quality || '无') + (n.quality && n.quality !== '无' ? ' ' + fmtPct(n.final_pct) : '') + '</span><br>';
+      if (n.ref_date) {
+        const corr = Object.entries(n.corr || {}).map(([k, v]) => k + (v > 0 ? '+' : '') + v).join(' ');
+        h += '<span style="color:#8b91a0;font-size:11px">　参考 ' + n.ref_date.slice(5) + ' 场外 ' + n.ref_idx + ' → ' + n.cur_idx +
+          ' (' + fmtPct(n.raw_pct) + ')' + (corr ? ' · 修正 ' + corr : '') + '</span><br>';
+      } else {
+        h += '<span style="color:#8b91a0;font-size:11px">　无参考节点，无法计算质量</span><br>';
+      }
+    } else {
+      h += '<span style="color:#8b91a0">·</span> <span style="color:#b9bec9">' + n.desc + '</span><br>';
+    }
+  });
+  return h + '</div>';
+}
 
 function buildOption(coin) {
   const s = DATA.series[coin];
@@ -197,6 +251,20 @@ function buildOption(coin) {
     xAxis: dates[i], yAxis: s.offchain[i], symbol: 'triangle', symbolSize: 10,
     itemStyle: { color: '#e0a030' }
   }));
+  // 关键节点彩色圆点 / 特殊节点小灰点（逼近已有 ▲，不重复画）
+  const nodePts = [];
+  dates.forEach((d, i) => {
+    const list = s.nodes[d];
+    if (!list || s.offchain[i] === null) return;
+    const key = list.find(n => n.kind === 'key');
+    if (key) {
+      nodePts.push({ xAxis: d, yAxis: s.offchain[i], symbol: 'circle', symbolSize: 8,
+        itemStyle: { color: NODE_COLOR[key.type] || '#8b91a0', borderColor: '#0f1117', borderWidth: 1 } });
+    } else if (list.some(n => n.kind === 'special' && n.type !== 'approaching')) {
+      nodePts.push({ xAxis: d, yAxis: s.offchain[i], symbol: 'circle', symbolSize: 4,
+        itemStyle: { color: '#8b91a0', opacity: 0.8 } });
+    }
+  });
 
   // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致且留足空间放轴名（均为 6%）
   const grids = kl ? [
@@ -257,7 +325,7 @@ function buildOption(coin) {
     markLine: { silent: true, symbol: 'none', data: [
       { yAxis: 1000, lineStyle: { color: '#6a7180' }, label: { color: '#8b91a0', formatter: '1000' } },
       { yAxis: 1500, lineStyle: { color: '#3a3f4d', type: 'dashed' }, label: { color: '#6a7180', formatter: '1500' } } ] },
-    markPoint: { data: approachPts, label: { show: false } } });
+    markPoint: { data: nodePts.concat(approachPts), label: { show: false }, silent: true } });
   series.push({ name: '爆破指数', type: 'line', xAxisIndex: brkGrid, yAxisIndex: brkGrid,
     data: s.break, connectNulls: true, showSymbol: false, lineStyle: { color: '#b06fd0', width: 1.4 },
     markArea: { silent: true, data: areas },
@@ -280,6 +348,7 @@ function buildOption(coin) {
         if (o) html += '开' + o[0] + ' 高' + o[3] + ' 低' + o[2] + ' 收<b>' + o[1] + '</b><br>';
         const put = (nm, v) => { if (v !== null && v !== undefined) html += nm + '：<b>' + v + '</b><br>'; };
         put('场外指数', s.offchain[idx]); put('爆破指数', s.break[idx]);
+        html += nodesHtml(s.nodes[dates[idx]]);
         if (bt) {
           const d = dates[idx];
           bt.trades.filter(t => t.date === d).forEach(t => {

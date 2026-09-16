@@ -28,7 +28,45 @@ DB_PATH = Path(__file__).parent.parent / 'mag_data.db'
 OUT_PATH = Path(__file__).parent.parent / 'mag_chart.html'
 
 
-def load_data(db_path: Path = DB_PATH) -> dict:
+def load_nodes(conn, coin: str = None) -> dict:
+    """关键节点（analysis_results）与特殊节点（special_nodes），按 coin -> date 归组。
+
+    传 coin 只取该标的（供 /chart/nodes 按标的懒加载）；不传取全部（静态导出内嵌）。
+    """
+    where, params = ('WHERE coin = ?', (coin,)) if coin else ('', ())
+    nodes: dict = {}
+    for r in conn.execute(f"""
+        SELECT date, coin, node_type, quality_rating, final_percentage,
+               reference_node_date, reference_offchain_index, current_offchain_index,
+               change_percentage, phase_correction, us_stock_correction,
+               divergence_correction, break_index_correction, approaching_correction
+        FROM analysis_results {where} ORDER BY coin, date, id""", params):
+        corr = {k: v for k, v in (('相变', r[9]), ('美股', r[10]), ('背离', r[11]),
+                                  ('爆破', r[12]), ('逼近', r[13])) if v}
+        nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
+            'kind': 'key', 'type': r['node_type'], 'quality': r['quality_rating'],
+            'final_pct': r['final_percentage'], 'ref_date': r['reference_node_date'],
+            'ref_idx': r['reference_offchain_index'], 'cur_idx': r['current_offchain_index'],
+            'raw_pct': r['change_percentage'], 'corr': corr,
+        })
+    for r in conn.execute(
+            f"SELECT date, coin, node_type, description FROM special_nodes {where} ORDER BY coin, date, id",
+            params):
+        nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
+            'kind': 'special', 'type': r['node_type'], 'desc': r['description'] or r['node_type'],
+        })
+    return nodes
+
+
+def load_coin_nodes(coin: str, db_path: Path = DB_PATH) -> dict:
+    """单个标的的节点 {date: [节点...]}"""
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        return load_nodes(conn, coin).get(coin, {})
+
+
+def load_data(db_path: Path = DB_PATH, include_nodes: bool = True) -> dict:
+    """页面数据。include_nodes=False 时不内嵌节点详情（API 实时页按标的懒加载 /chart/nodes）"""
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         cdd_rows = conn.execute("""
@@ -43,27 +81,7 @@ def load_data(db_path: Path = DB_PATH) -> dict:
                 kline.setdefault(r[1], {})[r[0]] = (r[2], r[3], r[4], r[5])  # o,h,l,c
         except sqlite3.OperationalError:
             pass
-        # 关键节点（analysis_results）与特殊节点（special_nodes），按 coin -> date 归组
-        nodes: dict = {}
-        for r in conn.execute("""
-            SELECT date, coin, node_type, quality_rating, final_percentage,
-                   reference_node_date, reference_offchain_index, current_offchain_index,
-                   change_percentage, phase_correction, us_stock_correction,
-                   divergence_correction, break_index_correction, approaching_correction
-            FROM analysis_results ORDER BY coin, date, id"""):
-            corr = {k: v for k, v in (('相变', r[9]), ('美股', r[10]), ('背离', r[11]),
-                                      ('爆破', r[12]), ('逼近', r[13])) if v}
-            nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
-                'kind': 'key', 'type': r['node_type'], 'quality': r['quality_rating'],
-                'final_pct': r['final_percentage'], 'ref_date': r['reference_node_date'],
-                'ref_idx': r['reference_offchain_index'], 'cur_idx': r['current_offchain_index'],
-                'raw_pct': r['change_percentage'], 'corr': corr,
-            })
-        for r in conn.execute(
-                "SELECT date, coin, node_type, description FROM special_nodes ORDER BY coin, date, id"):
-            nodes.setdefault(r['coin'], {}).setdefault(r['date'], []).append({
-                'kind': 'special', 'type': r['node_type'], 'desc': r['description'] or r['node_type'],
-            })
+        nodes = load_nodes(conn) if include_nodes else {}
 
     by_coin: dict = {}
     for r in cdd_rows:
@@ -114,8 +132,9 @@ def load_data(db_path: Path = DB_PATH) -> dict:
             'phase': phase, 'phase_days': phase_days,
             'ohlc': ohlc, 'hasKline': any(x is not None for x in ohlc),
             'approaching': approaching, 'segments': segments,
-            'nodes': nodes.get(coin, {}),  # date -> [节点...]
         }
+        if include_nodes:
+            series[coin]['nodes'] = nodes.get(coin, {})  # date -> [节点...]；不内嵌时前端懒加载
 
     order = {'BTC': 0, '龙头币': 1, '美股/大宗': 2, '国内A股': 3, '山寨币': 4}
     coins = sorted(series.keys(), key=lambda c: (order.get(series[c]['kind'], 9), c))
@@ -253,8 +272,9 @@ function buildOption(coin) {
   }));
   // 关键节点彩色圆点 / 特殊节点小灰点（逼近已有 ▲，不重复画）
   const nodePts = [];
+  const nodesMap = s.nodes || {};   // 实时页按标的懒加载，未到达前为空
   dates.forEach((d, i) => {
-    const list = s.nodes[d];
+    const list = nodesMap[d];
     if (!list || s.offchain[i] === null) return;
     const key = list.find(n => n.kind === 'key');
     if (key) {
@@ -348,7 +368,7 @@ function buildOption(coin) {
         if (o) html += '开' + o[0] + ' 高' + o[3] + ' 低' + o[2] + ' 收<b>' + o[1] + '</b><br>';
         const put = (nm, v) => { if (v !== null && v !== undefined) html += nm + '：<b>' + v + '</b><br>'; };
         put('场外指数', s.offchain[idx]); put('爆破指数', s.break[idx]);
-        html += nodesHtml(s.nodes[dates[idx]]);
+        html += nodesHtml((s.nodes || {})[dates[idx]]);
         if (bt) {
           const d = dates[idx];
           bt.trades.filter(t => t.date === d).forEach(t => {
@@ -379,6 +399,21 @@ function render(coin) {
   if (BT.coin !== coin) clearBacktest(false);
   syncBtControls(coin);
   chart.setOption(buildOption(coin), true);
+  if (DATA.live && !s.nodes) loadNodes(coin);
+}
+
+// 节点详情按标的懒加载（实时页 /chart/data 不内嵌，首次切到该标的时拉取并缓存）
+const nodesLoading = new Set();
+function loadNodes(coin, force) {
+  if (nodesLoading.has(coin)) return;
+  nodesLoading.add(coin);
+  fetch('/chart/nodes?coin=' + encodeURIComponent(coin)).then(r => r.ok ? r.json() : {})
+    .then(nodes => {
+      DATA.series[coin].nodes = nodes;
+      if (sel.value === coin) chart.setOption(buildOption(coin), true);  // 仍在看这个标的才刷新
+    })
+    .catch(() => { DATA.series[coin].nodes = DATA.series[coin].nodes || {}; })
+    .finally(() => nodesLoading.delete(coin));
 }
 
 // ---- 回测（仅 API 实时页可用；静态导出无后端，隐藏控件）----
@@ -440,6 +475,7 @@ async function runBacktest() {
       '超出剩余现金时只买剩余现金，现金用完后的买入信号跳过，因此多次分批名义比例可超 100%，实际投入不会超过账户资金。</span>');
     document.getElementById('btClose').addEventListener('click', () => clearBacktest(true));
     chart.setOption(buildOption(coin), true);
+    delete DATA.series[coin].nodes; loadNodes(coin);  // 回测前重算了节点，刷新节点缓存
     // 视窗对准回测区间
     chart.dispatchAction({ type: 'dataZoom', startValue: body.start_date, endValue: body.end_date });
   } catch (e) {

@@ -12,7 +12,7 @@ import ipaddress
 
 from src.mag_reanalyze import reanalyze_date_range_json
 from src.mag_system import import_and_analyze_json
-from src.gen_chart import load_data, render_page
+from src.gen_chart import load_data, load_coin_nodes, render_page
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -98,6 +98,7 @@ async def root():
             "reanalyze": "POST /api/v1/reanalyze",
             "chart": "GET /chart",
             "chart_data": "GET /chart/data",
+            "chart_nodes": "GET /chart/nodes",
             "chart_backtest": "GET /chart/backtest"
         }
     }
@@ -203,7 +204,13 @@ async def chart_data():
     """
     from src.fetch_kline import refresh_if_stale
     refresh_if_stale()
-    return JSONResponse(load_data())
+    return JSONResponse(load_data(include_nodes=False))  # 节点详情由 /chart/nodes 按标的懒加载
+
+
+@app.get("/chart/nodes")
+async def chart_nodes(coin: str):
+    """单个标的的关键/特殊节点详情 {date: [节点...]}，页面切到该标的时懒加载并缓存。"""
+    return JSONResponse(load_coin_nodes(coin))
 
 
 PERSONALITIES = ['conservative', 'aggressive', 'middle_a', 'middle_b', 'middle_c', 'middle_d']

@@ -97,7 +97,8 @@ async def root():
             "import": "POST /api/v1/import",
             "reanalyze": "POST /api/v1/reanalyze",
             "chart": "GET /chart",
-            "chart_data": "GET /chart/data"
+            "chart_data": "GET /chart/data",
+            "chart_backtest": "GET /chart/backtest"
         }
     }
 
@@ -190,7 +191,7 @@ async def reanalyze(request: ReanalyzeRequest):
 @app.get("/chart", response_class=HTMLResponse)
 async def chart_page():
     """标的可视化页面。数据实时从数据库读取，运行 mag_system 导入后刷新即更新。"""
-    return render_page("fetch('/chart/data').then(r => r.json()).then(initChart);")
+    return render_page("fetch('/chart/data').then(r => r.json()).then(d => { d.live = true; initChart(d); });")
 
 
 @app.get("/chart/data")
@@ -203,6 +204,37 @@ async def chart_data():
     from src.fetch_kline import refresh_if_stale
     refresh_if_stale()
     return JSONResponse(load_data())
+
+
+PERSONALITIES = ['conservative', 'aggressive', 'middle_a', 'middle_b', 'middle_c', 'middle_d']
+
+
+@app.get("/chart/backtest")
+async def chart_backtest(coin: str, start: str, end: str, personality: str):
+    """可视化页面的回测接口：以真实日 K 线中间价 (开+收)/2 成交，只在有 K 线的日期交易。
+
+    返回交易明细与逐日资金曲线，供页面在 K 线上标注买卖点并叠加资金曲线。
+    """
+    from src.database import MagDatabase
+    from src.config import MagConfig
+    from src.backtest import BacktestEngine
+
+    try:
+        datetime.strptime(start, '%Y-%m-%d')
+        datetime.strptime(end, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式不正确，请使用 YYYY-MM-DD 格式")
+    if start > end:
+        raise HTTPException(status_code=400, detail="开始日期不能晚于结束日期")
+    if personality not in PERSONALITIES:
+        raise HTTPException(status_code=400, detail=f"性格类型必须是: {', '.join(PERSONALITIES)}")
+
+    config = MagConfig()
+    engine = BacktestEngine(MagDatabase(config.db_path), config)
+    result = engine.run_backtest(coin, start, end, personality, price_source='kline')
+    if not result.get('success'):
+        raise HTTPException(status_code=404, detail=result.get('error', '回测失败'))
+    return JSONResponse(result)
 
 
 # ========== 健康检查 ==========

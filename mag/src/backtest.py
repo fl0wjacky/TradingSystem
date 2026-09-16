@@ -16,7 +16,8 @@ class BacktestEngine:
         self.config = config
 
     def run_backtest(self, coin: str, start_date: str, end_date: str,
-                    personality: str, initial_capital: float = 10000.0) -> Dict:
+                    personality: str, initial_capital: float = 10000.0,
+                    price_source: str = 'shelin') -> Dict:
         """
         执行回测
 
@@ -32,6 +33,10 @@ class BacktestEngine:
                 - middle_c: 中间型-c
                 - middle_d: 中间型-d
             initial_capital: 初始资金（美元）
+            price_source: 成交价来源
+                - 'shelin': 笔记里的谢林点（CLI 默认）
+                - 'kline': 真实日 K 线中间价 (开+收)/2；只在有 K 线的日期成交，
+                  无 K 线的节点跳过；并按 K 线逐日估值，输出资金曲线
 
         Returns:
             回测结果字典
@@ -47,6 +52,17 @@ class BacktestEngine:
         peak_value = initial_capital  # 资金峰值
         max_drawdown = 0.0  # 最大回撤百分比
 
+        # K 线模式：加载区间内的日 K 中间价，并把回测区间收窄到有 K 线的日期
+        kline_mid = {}
+        if price_source == 'kline':
+            kline_mid = self._get_kline_mid(coin, start_date, end_date)
+            if not kline_mid:
+                return {
+                    'success': False,
+                    'error': f'{coin} 在 {start_date} 至 {end_date} 没有 K 线数据'
+                }
+            start_date, end_date = min(kline_mid), max(kline_mid)
+
         # 获取所有节点（关键节点 + 特殊节点）
         nodes = self._get_all_nodes(coin, start_date, end_date)
 
@@ -60,7 +76,10 @@ class BacktestEngine:
         for node in nodes:
             date = node['date']
             node_type = node['node_type']
-            price = node['price']  # 谢林点价格
+            if price_source == 'kline':
+                price = kline_mid.get(date)  # 无 K 线的日期直接跳过
+            else:
+                price = node['price']  # 谢林点价格
 
             # 跳过没有价格的节点
             if price is None or price == 0:
@@ -107,7 +126,12 @@ class BacktestEngine:
                 })
 
         # 计算最终收益
-        if not trades:
+        equity = []
+        if price_source == 'kline':
+            # 按 K 线逐日估值：资金曲线、期末市值、最大回撤（覆盖持仓期间的浮动回撤）
+            equity, max_drawdown = self._equity_curve(kline_mid, trades, initial_capital)
+            final_value = equity[-1][1]
+        elif not trades:
             final_value = initial_capital
         else:
             last_trade = trades[-1]
@@ -122,6 +146,7 @@ class BacktestEngine:
             'start_date': start_date,
             'end_date': end_date,
             'personality': personality,
+            'price_source': price_source,
             'initial_capital': initial_capital,
             'final_value': final_value,
             'profit': profit,
@@ -129,8 +154,46 @@ class BacktestEngine:
             'max_drawdown': max_drawdown,  # 最大回撤（负数百分比）
             'final_cash': cash,
             'final_position': position,
-            'trades': trades
+            'trades': trades,
+            'equity': equity  # [[date, 账户价值], ...]，仅 kline 模式
         }
+
+    def _get_kline_mid(self, coin: str, start_date: str, end_date: str) -> Dict[str, float]:
+        """区间内的日 K 线中间价 {date: (open+close)/2}；表不存在时返回空"""
+        import sqlite3
+
+        with sqlite3.connect(self.db.db_path) as conn:
+            try:
+                rows = conn.execute(
+                    "SELECT date, open, close FROM kline_data "
+                    "WHERE coin = ? AND date >= ? AND date <= ? "
+                    "AND open IS NOT NULL AND close IS NOT NULL ORDER BY date",
+                    (coin, start_date, end_date)).fetchall()
+            except sqlite3.OperationalError:
+                return {}
+        return {d: (o + c) / 2 for d, o, c in rows}
+
+    @staticmethod
+    def _equity_curve(kline_mid: Dict[str, float], trades: List[Dict],
+                      initial_capital: float) -> Tuple[List, float]:
+        """按 K 线日期逐日重放交易，得到资金曲线与最大回撤"""
+        cash, position = initial_capital, 0.0
+        peak, max_dd = initial_capital, 0.0
+        ti, equity = 0, []
+        for d in sorted(kline_mid):
+            while ti < len(trades) and trades[ti]['date'] <= d:
+                cash = trades[ti]['cash_after']
+                position = trades[ti]['position_after']
+                ti += 1
+            value = cash + position * kline_mid[d]
+            equity.append([d, value])
+            if value > peak:
+                peak = value
+            else:
+                dd = (value - peak) / peak * 100
+                if dd < max_dd:
+                    max_dd = dd
+        return equity, max_dd
 
     def _get_all_nodes(self, coin: str, start_date: str, end_date: str) -> List[Dict]:
         """获取时间范围内的所有节点"""

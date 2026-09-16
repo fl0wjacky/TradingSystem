@@ -70,6 +70,57 @@ def _seed_test_data(db: MagDatabase):
         conn.commit()
 
 
+def _seed_kline(db: MagDatabase):
+    """写入真实 K 线：中间价 (开+收)/2 与谢林点不同，且 10-08 这天故意缺 K 线"""
+    with sqlite3.connect(db.db_path) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS kline_data (
+                date TEXT NOT NULL, coin TEXT NOT NULL,
+                open REAL, high REAL, low REAL, close REAL,
+                PRIMARY KEY (date, coin))
+        """)
+        for day in range(1, 11):
+            if day == 8:
+                continue  # 爆破跌200 当天无 K 线 -> 该节点应被跳过
+            d = f'2025-10-{day:02d}'
+            o, c = 50000.0 + day * 1000, 52000.0 + day * 1000   # 中间价 = 51000 + day*1000
+            conn.execute("INSERT INTO kline_data VALUES (?, 'BTC', ?, ?, ?, ?)",
+                         (d, o, c + 500, o - 500, c))
+        conn.commit()
+
+
+def test_backtest_kline_price():
+    """K 线模式：以 (开+收)/2 成交、无 K 线日期的节点跳过、按日估值输出资金曲线"""
+    fd, tmp_path = tempfile.mkstemp(suffix='.db', prefix='mag_test_')
+    os.close(fd)
+    try:
+        db = MagDatabase(tmp_path)
+        _seed_test_data(db)
+        _seed_kline(db)
+        engine = BacktestEngine(db, MagConfig())
+        r = engine.run_backtest('BTC', '2025-09-01', '2025-12-31', 'conservative',
+                                initial_capital=10000.0, price_source='kline')
+        assert r['success'], r.get('error')
+        assert r['price_source'] == 'kline'
+        # 区间收窄到有 K 线的日期
+        assert (r['start_date'], r['end_date']) == ('2025-10-01', '2025-10-10')
+        # 10-02 进场按中间价 53000 成交，而非谢林点 61000
+        assert len(r['trades']) == 1, r['trades']
+        t = r['trades'][0]
+        assert t['date'] == '2025-10-02' and t['action'] == 'buy_full'
+        assert abs(t['price'] - 53000.0) < 1e-6
+        # 10-08 无 K 线，爆破跌200 的清仓被跳过 -> 期末仍持仓，按 10-10 中间价 61000 估值
+        assert r['final_position'] > 0
+        assert len(r['equity']) == 9 and r['equity'][-1][0] == '2025-10-10'
+        assert abs(r['final_value'] - 10000.0 / 53000.0 * 61000.0) < 1e-6
+        assert abs((r['final_value'] - 10000.0) - r['profit']) < 1e-6
+        assert r['max_drawdown'] <= 0
+        print("✓ K 线模式回测测试通过")
+        print(f"  成交价: {t['price']:,.0f}  期末: ${r['final_value']:,.2f}  收益率: {r['profit_rate']:+.2f}%")
+    finally:
+        os.remove(tmp_path)
+
+
 def test_backtest_conservative():
     """高稳健型回测：在临时数据库上运行，校验返回结构与数值一致性"""
     fd, tmp_path = tempfile.mkstemp(suffix='.db', prefix='mag_test_')
@@ -108,3 +159,4 @@ def test_backtest_conservative():
 
 if __name__ == '__main__':
     test_backtest_conservative()
+    test_backtest_kline_price()

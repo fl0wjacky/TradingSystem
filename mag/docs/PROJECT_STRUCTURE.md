@@ -140,7 +140,7 @@ mag/
 
 ## 版本历史
 
-当前版本 **v2.7.0**。完整更新日志详见 [CHANGELOG.md](../CHANGELOG.md)。
+当前版本 **v2.7.1**。完整更新日志详见 [CHANGELOG.md](../CHANGELOG.md)。
 
 ## 技术栈
 

@@ -1,5 +1,12 @@
 # Mag 现货提示系统 - 更新日志
 
+## v2.6.3 (2026-09-16)
+
+### Bug 修复 🐛
+
+- **补齐 5 个加密标的的 K 线**：HYPE/FARTCOIN/AI16Z/ARC 此前映射到 Binance 现货，但现货并无这些交易对，抓取一直被跳过；改走 Binance 合约（fapi），新增 `CRYPTO_FUTURES` 映射表。ENA 现货有交易对但漏了映射，补上。含真实 K 线的标的 52→57；仍无 K 线的为 OKB/BGB/PI/CET（Binance 现货与合约均无）及 10 个自定义指数
+  - `kline_sources.get_source` 查找顺序：现货 → 加密合约 → 美股/商品合约
+
 ## v2.6.2 (2026-08-19)
 
 ### Bug 修复 🐛

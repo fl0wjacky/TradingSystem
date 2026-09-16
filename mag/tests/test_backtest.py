@@ -117,6 +117,16 @@ def test_backtest_kline_price():
         assert r['max_drawdown'] <= 0
         print("✓ K 线模式回测测试通过")
         print(f"  成交价: {t['price']:,.0f}  期末: ${r['final_value']:,.2f}  收益率: {r['profit_rate']:+.2f}%")
+
+        # 区间内有 K 线但没有节点：正常返回、无交易、资金曲线走平（谢林点模式仍报错）
+        r = engine.run_backtest('BTC', '2025-10-03', '2025-10-07', 'conservative',
+                                initial_capital=10000.0, price_source='kline')
+        assert r['success'], r.get('error')
+        assert r['trades'] == [] and r['profit'] == 0 and r['max_drawdown'] == 0
+        assert len(r['equity']) == 5 and all(v == 10000.0 for _, v in r['equity'])
+        r = engine.run_backtest('BTC', '2025-10-03', '2025-10-07', 'conservative')
+        assert not r['success'] and '未找到' in r['error']
+        print("✓ 无节点区间正常返回测试通过")
     finally:
         os.remove(tmp_path)
 

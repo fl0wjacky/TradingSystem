@@ -66,7 +66,9 @@ class BacktestEngine:
         # 获取所有节点（关键节点 + 特殊节点）
         nodes = self._get_all_nodes(coin, start_date, end_date)
 
-        if not nodes:
+        # K 线模式下区间内没有节点是合理结果（期间无交易、资金曲线走平），不报错；
+        # 谢林点模式（CLI）维持原有报错
+        if not nodes and price_source != 'kline':
             return {
                 'success': False,
                 'error': f'未找到 {coin} 在 {start_date} 至 {end_date} 的节点数据'

@@ -126,7 +126,7 @@ curl -X POST http://127.0.0.1:8888/api/v1/reanalyze \
 **请求参数**:
 - `start_date` (必填): 开始日期 (YYYY-MM-DD)
 - `end_date` (可选): 结束日期，默认等于start_date
-- `coins` (可选): 指定币种列表，如["BTC", "ETH"]，null表示所有币种
+- `coins` (可选): 指定币种列表，如["BTC", "ETH"]，null表示所有币种。指定时只删除并重算这些币种在该范围内的结果，其他币种的结果保留
 - `verbose` (可选): 是否显示详细结果（暂不支持）
 - `export_html` (可选): 是否导出HTML文件，默认false
 

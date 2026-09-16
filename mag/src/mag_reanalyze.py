@@ -236,7 +236,7 @@ def reanalyze_date_range_json(start_date: str, end_date: str, coins: list = None
     analyzer = MagAnalyzer(db, mag_config)
 
     # 删除该日期范围的旧分析结果
-    deleted_count = db.delete_analysis_results(start_date, end_date)
+    deleted_count = db.delete_analysis_results(start_date, end_date, coins)
 
     # 获取日期范围内的所有数据
     all_data = db.get_data_in_range(start_date, end_date)
@@ -397,7 +397,7 @@ def reanalyze_date_range(start_date: str, end_date: str, coins: list = None, ver
 
     # 删除该日期范围的旧分析结果
     console.print(f"\n[yellow]正在删除旧的分析结果...[/yellow]")
-    deleted_count = db.delete_analysis_results(start_date, end_date)
+    deleted_count = db.delete_analysis_results(start_date, end_date, coins)
     console.print(f"[green]✓[/green] 已删除 {deleted_count} 条旧分析结果\n")
 
     # 获取日期范围内的所有数据
@@ -671,7 +671,7 @@ def main():
   -v, --verbose - 显示详细分析结果和建议
   --img       - 导出节点列表为SVG图片
   --no-altcoins - 过滤掉山寨币，只显示美股、BTC、龙头币、国内A股
-  coins       - 指定币种 (可选，多个币种用空格分隔)
+  coins       - 指定币种 (可选，多个币种用空格分隔；只删除并重算这些币种，其他币种的结果保留)
 
 示例:
   # 重新分析单个日期的所有币种

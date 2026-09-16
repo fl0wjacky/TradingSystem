@@ -419,23 +419,28 @@ class MagDatabase:
 
             return None
 
-    def delete_analysis_results(self, start_date: str, end_date: str) -> int:
-        """删除指定日期范围的分析结果和特殊节点，返回删除数量"""
+    def delete_analysis_results(self, start_date: str, end_date: str,
+                                coins: Optional[List[str]] = None) -> int:
+        """删除指定日期范围的分析结果和特殊节点，返回删除数量
+
+        coins 为空时删除该范围内所有标的；指定 coins 时只删这些标的的旧结果，
+        避免「只重算部分标的却清掉全部标的」。
+        """
+        where = "date >= ? AND date <= ?"
+        params: list = [start_date, end_date]
+        if coins:
+            where += " AND coin IN (%s)" % ",".join("?" * len(coins))
+            params += list(coins)
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
             # 删除分析结果
-            cursor.execute("""
-                DELETE FROM analysis_results
-                WHERE date >= ? AND date <= ?
-            """, (start_date, end_date))
+            cursor.execute(f"DELETE FROM analysis_results WHERE {where}", params)
             deleted_analysis = cursor.rowcount
 
             # 删除特殊节点
-            cursor.execute("""
-                DELETE FROM special_nodes
-                WHERE date >= ? AND date <= ?
-            """, (start_date, end_date))
+            cursor.execute(f"DELETE FROM special_nodes WHERE {where}", params)
             deleted_special = cursor.rowcount
 
             conn.commit()

@@ -282,6 +282,50 @@ http://127.0.0.1:8888/chart
 
 ---
 
+### 6. 页面回测接口
+
+**端点**: `GET /chart/backtest?coin=BTC&start=2026-01-01&end=2026-09-15&personality=conservative`
+
+`/chart` 页面「回测」按钮调用的接口，也可直接调用。
+
+**流程**：
+1. 校验参数（日期格式、开始不晚于结束、性格类型合法）
+2. **先对该标的在所选区间重新分析节点**（等价于 `POST /api/v1/reanalyze` 传 `coins: [coin]`，只删除并重算这一个标的，其他标的不受影响，单标的全年约 1 秒），保证回测用的节点与当前数据和分析逻辑一致
+3. 以真实日 K 线中间价 (开+收)/2 成交，只在有 K 线的日期交易，回测区间自动收窄到有 K 线的日期；区间内没有节点按无交易处理
+4. 返回交易明细与逐日资金曲线
+
+**参数**：
+- `coin`：标的名称，必须有 K 线数据
+- `start` / `end`：YYYY-MM-DD
+- `personality`：`conservative` / `aggressive` / `middle_a` / `middle_b` / `middle_c` / `middle_d`
+
+**响应 (200 OK)**：
+
+```json
+{
+  "success": true,
+  "coin": "BTC",
+  "start_date": "2026-01-02",
+  "end_date": "2026-09-15",
+  "personality": "conservative",
+  "price_source": "kline",
+  "initial_capital": 10000.0,
+  "final_value": 11651.2,
+  "profit": 1651.2,
+  "profit_rate": 16.51,
+  "max_drawdown": -14.18,
+  "trades": [
+    {"date": "2026-01-05", "node_type": "enter_phase_day1", "action": "buy_full",
+     "price": 92694.7, "amount": 0.1079, "cash_after": 0.0, "total_value": 10000.0}
+  ],
+  "equity": [["2026-01-02", 10000.0], ["2026-01-03", 10000.0]]
+}
+```
+
+**错误**：`400` 参数不合法；`404` 该标的在区间内没有 K 线数据
+
+---
+
 ## n8n集成示例
 
 ### 导入数据工作流

@@ -343,7 +343,7 @@ function fmtMoney(v) { return v.toLocaleString('en-US', { maximumFractionDigits:
 async function runBacktest() {
   const coin = sel.value;
   if (btStart.value > btEnd.value) { showBtBar('<span class="err">开始日期不能晚于结束日期</span>'); return; }
-  btBtn.disabled = true; btBtn.textContent = '回测中…';
+  btBtn.disabled = true; btBtn.textContent = '分析+回测中…';
   try {
     const q = new URLSearchParams({ coin, start: btStart.value, end: btEnd.value, personality: btPers.value });
     const resp = await fetch('/chart/backtest?' + q);
@@ -365,7 +365,8 @@ async function runBacktest() {
       '<span>交易 <b>' + body.trades.length + '</b> 笔</span>' +
       '<span class="x" id="btClose" title="清除回测">✕</span>' +
       (body.trades.length ? '<span class="trades">' + trades + '</span>' : '<span class="trades">期间无交易</span>') +
-      '<span class="note"><b>价格</b>：成交价取当日 K 线中间价 (开+收)/2，只在有 K 线的日期成交，无 K 线的节点跳过；资金曲线按每日中间价估值。' +
+      '<span class="note"><b>节点</b>：每次回测前先对该标的在所选区间重新分析节点（只重算这一个标的），回测结果始终基于当前数据与分析逻辑。' +
+      '　<b>价格</b>：成交价取当日 K 线中间价 (开+收)/2，只在有 K 线的日期成交，无 K 线的节点跳过；资金曲线按每日中间价估值。' +
       '　<b>仓位</b>：买 20%/30%/40% 以下单当时的账户总市值（现金 + 持仓市值）为基数，不按初始资金、不累计；' +
       '超出剩余现金时只买剩余现金，现金用完后的买入信号跳过，因此多次分批名义比例可超 100%，实际投入不会超过账户资金。</span>');
     document.getElementById('btClose').addEventListener('click', () => clearBacktest(true));

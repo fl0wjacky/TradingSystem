@@ -2,13 +2,17 @@
 数据库操作模块
 """
 import sqlite3
+from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 
 
 class MagDatabase:
-    def __init__(self, db_path: str = "mag_data.db"):
-        self.db_path = db_path
+    DEFAULT_DB_PATH = str(Path(__file__).parent.parent / 'mag_data.db')
+
+    def __init__(self, db_path: str = None):
+        # 默认用项目目录下的 mag_data.db（绝对路径），不受启动时工作目录影响
+        self.db_path = db_path or self.DEFAULT_DB_PATH
         self.init_database()
 
     def init_database(self):

@@ -213,6 +213,8 @@ PERSONALITIES = ['conservative', 'aggressive', 'middle_a', 'middle_b', 'middle_c
 async def chart_backtest(coin: str, start: str, end: str, personality: str):
     """可视化页面的回测接口：以真实日 K 线中间价 (开+收)/2 成交，只在有 K 线的日期交易。
 
+    回测前先对该标的在所选区间重新分析节点（只删除并重算这一个标的，其他标的不受影响，
+    单标的全年约 1 秒），保证回测用的节点与当前数据和分析逻辑一致，不依赖过期的分析结果。
     返回交易明细与逐日资金曲线，供页面在 K 线上标注买卖点并叠加资金曲线。
     """
     from src.database import MagDatabase
@@ -228,6 +230,10 @@ async def chart_backtest(coin: str, start: str, end: str, personality: str):
         raise HTTPException(status_code=400, detail="开始日期不能晚于结束日期")
     if personality not in PERSONALITIES:
         raise HTTPException(status_code=400, detail=f"性格类型必须是: {', '.join(PERSONALITIES)}")
+
+    # 先重算该标的在区间内的节点；区间内没有场外数据时 reanalyze 返回失败，
+    # 这不算错误（回测会按无节点处理），其余情况照常回测
+    reanalyze_date_range_json(start_date=start, end_date=end, coins=[coin])
 
     config = MagConfig()
     engine = BacktestEngine(MagDatabase(config.db_path), config)

@@ -3,6 +3,7 @@
 标的 -> 行情源映射
 
 - 加密标的：Binance 现货 <COIN>USDT（免 key、稳定、历史长）
+- 现货未上但合约有的加密标的（HYPE/FARTCOIN/AI16Z/ARC）：Binance 合约（fapi）
 - 美股/ETF/商品/亚股：Binance 合约（fapi）代币化交易对，如 GOLD→XAUUSDT、
   NASDAQ→QQQUSDT、GOOG→GOOGLUSDT。免 key、不限流；但这些合约上线较晚，
   历史一般只回溯到 2026 年（个别更短），更早的日期无 K 线。
@@ -11,15 +12,18 @@
 返回 (source, symbol)；未映射的标的返回 None（页面上仅显示场外/爆破，无 K 线）。
 """
 
-# 加密：COIN -> Binance 现货交易对（不存在的会在抓取时被跳过，如 OKB/HYPE/PI）
+# 加密：COIN -> Binance 现货交易对（不存在的会在抓取时被跳过，如 OKB/BGB/PI/CET）
 CRYPTO = {
     c: c + 'USDT' for c in [
         'BTC', 'ETH', 'BNB', 'SOL', 'DOGE', 'ADA', 'AVAX', 'BCH', 'EOS', 'LTC',
         'LINK', 'UNI', 'CRV', 'LDO', 'AAVE', 'ONDO', 'PEPE', 'SEI', 'SUI', 'WLD',
-        'ZEC', 'HYPE', 'TRUMP', 'PUMP', 'VIRTUAL', 'KAITO', 'OM', 'PI', 'RAY',
-        'CFX', 'FLOKI', 'ARC', 'AI16Z', 'FARTCOIN', 'BGB', 'CET', 'OKB',
+        'ZEC', 'TRUMP', 'PUMP', 'VIRTUAL', 'KAITO', 'OM', 'PI', 'RAY', 'ENA',
+        'CFX', 'FLOKI', 'BGB', 'CET', 'OKB',
     ]
 }
+
+# 加密：Binance 现货没有、只有合约(fapi)的交易对
+CRYPTO_FUTURES = {c: c + 'USDT' for c in ['HYPE', 'FARTCOIN', 'AI16Z', 'ARC']}
 
 # 美股 / ETF / 商品 / 亚股：COIN -> Binance 合约(fapi)代币化交易对
 STOCK_FUTURES = {
@@ -40,6 +44,8 @@ def get_source(coin: str):
     """返回 (source, symbol)；无行情源返回 None"""
     if coin in CRYPTO:
         return ('binance', CRYPTO[coin])
+    if coin in CRYPTO_FUTURES:
+        return ('binance_futures', CRYPTO_FUTURES[coin])
     if coin in STOCK_FUTURES:
         return ('binance_futures', STOCK_FUTURES[coin])
     return None

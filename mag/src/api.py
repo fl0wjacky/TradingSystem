@@ -3,54 +3,62 @@
 Mag API Server
 提供HTTP API接口用于导入和分析数据
 """
-from fastapi import FastAPI, HTTPException, Request, Depends,status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-import ipaddress
+import os
+import secrets
 
 from src.mag_reanalyze import reanalyze_date_range_json
 from src.mag_system import import_and_analyze_json
 from src.gen_chart import load_data, load_coin_nodes, render_page
 
 # 创建FastAPI应用
+# docs/redoc/openapi 一律不注册:此服务经 Cloudflare Tunnel 暴露在公网
+# (magtrading.surfers.cc),不需要交互式文档,少三个端点就少三份暴露面。
 app = FastAPI(
     title="Mag API",
     description="Mag交易系统数据导入和分析API",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
-# 1. 定义允许的网段
+# 写接口鉴权(公网上唯一的一层)
 #
-# ⚠️ 注意:在 Cloudflare Tunnel 架构下(magtrading.surfers.cc),这层白名单是失效的。
-# cloudflared 从本机连 127.0.0.1:8888,uvicorn 看到的 request.client.host 恒为
-# 127.0.0.1,所有外部请求都会被放行。真正的鉴权边界是 Cloudflare Access。
-# 保留它是为了:uvicorn 若被改成 --host 0.0.0.0 时仍有一层防护。
-# 详见 surfers_cc/docs/superpowers/specs/2026-09-21-magtrading-surfers-cc-design.md §7
-ALLOWED_NETWORKS = [
-    ipaddress.ip_network('127.0.0.1/32'),  # 本机
-    ipaddress.ip_network('::1/128'),        # IPv6 本机
-    ipaddress.ip_network('10.42.0.0/16'),    # A类内网
-]
+# .env 里的 MAG_API_KEY;复用项目自己的 .env 解析,不引入 python-dotenv 依赖。
+# 改了 key 需要重启服务:launchctl kickstart -k gui/$(id -u)/cc.surfers.magtrading
+#
+# 这里原本还有一层 ALLOWED_NETWORKS / check_ip_restriction 的 IP 白名单,已移除。
+# 原因:uvicorn 默认 proxy_headers=True,会解析 cloudflared 传来的 X-Forwarded-For,
+# 所以它看到的是访问者的真实公网 IP(不是 127.0.0.1)。这意味着经 tunnel 来的请求
+# 一律不在白名单内 —— 带正确 key 也会被 403 挡掉,写接口从外网彻底不可用。
+# 既然本就要求 X-API-Key,IP 白名单只剩副作用,故删。
+from src.config import config as _env_config
 
-# 2. 创建 IP 校验依赖函数
-async def check_ip_restriction(request: Request):
-    client_host = request.client.host
-    client_ip = ipaddress.ip_address(client_host)
+_env_config.load_from_env()
+API_KEY = os.environ.get('MAG_API_KEY', '')
 
-    # 检查是否在允许的网段内（跳过版本不匹配的网段，避免 IPv4/IPv6 比较抛 TypeError）
-    is_allowed = any(
-        client_ip.version == network.version and client_ip in network
-        for network in ALLOWED_NETWORKS
-    )
 
-    if not is_allowed:
+async def require_api_key(x_api_key: str = Header(default='', alias='X-API-Key')):
+    """校验请求头 X-API-Key。
+
+    未配置 MAG_API_KEY 时一律拒绝(fail closed),避免配置缺失导致写接口裸奔。
+    """
+    if not API_KEY:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access from IP {client_host} is not allowed"
+            status_code=503,
+            detail="MAG_API_KEY 未配置,写接口已禁用"
         )
-    return client_host
+    try:
+        ok = secrets.compare_digest(x_api_key.encode('utf-8'), API_KEY.encode('utf-8'))
+    except Exception:
+        ok = False
+    if not ok:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 # ========== 请求模型 ==========
@@ -91,26 +99,18 @@ class ReanalyzeRequest(BaseModel):
 
 # ========== API端点 ==========
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
-    """根路径，返回API信息"""
-    return {
-        "name": "Mag API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "chart": "/chart",
-        "endpoints": {
-            "import": "POST /api/v1/import",
-            "reanalyze": "POST /api/v1/reanalyze",
-            "chart": "GET /chart",
-            "chart_data": "GET /chart/data",
-            "chart_nodes": "GET /chart/nodes",
-            "chart_backtest": "GET /chart/backtest"
-        }
-    }
+    """根路径直接跳到图表页。
+
+    原先返回一份 API 端点清单,但这个服务在公网上只有图表是给人看的,
+    列出写接口没有意义。访问 magtrading.surfers.cc 直接出图。
+    """
+    return RedirectResponse(url="/chart")
 
 
-@app.post("/api/v1/import", dependencies=[Depends(check_ip_restriction)])
+@app.post("/api/v1/import",
+          dependencies=[Depends(require_api_key)])
 async def import_data(request: ImportRequest):
     """
     导入Notion数据并分析
@@ -149,7 +149,8 @@ async def import_data(request: ImportRequest):
         )
 
 
-@app.post("/api/v1/reanalyze", dependencies=[Depends(check_ip_restriction)])
+@app.post("/api/v1/reanalyze",
+          dependencies=[Depends(require_api_key)])
 async def reanalyze(request: ReanalyzeRequest):
     """
     重新分析历史数据

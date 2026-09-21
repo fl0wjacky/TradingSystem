@@ -22,6 +22,12 @@ app = FastAPI(
 )
 
 # 1. 定义允许的网段
+#
+# ⚠️ 注意:在 Cloudflare Tunnel 架构下(magtrading.surfers.cc),这层白名单是失效的。
+# cloudflared 从本机连 127.0.0.1:8888,uvicorn 看到的 request.client.host 恒为
+# 127.0.0.1,所有外部请求都会被放行。真正的鉴权边界是 Cloudflare Access。
+# 保留它是为了:uvicorn 若被改成 --host 0.0.0.0 时仍有一层防护。
+# 详见 surfers_cc/docs/superpowers/specs/2026-09-21-magtrading-surfers-cc-design.md §7
 ALLOWED_NETWORKS = [
     ipaddress.ip_network('127.0.0.1/32'),  # 本机
     ipaddress.ip_network('::1/128'),        # IPv6 本机
@@ -55,7 +61,7 @@ class ImportRequest(BaseModel):
     auto_analyze: bool = Field(True, description="是否自动分析（目前总是进行分析）")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "notion_url": "https://serious-club-96d.notion.site/29b019fe17e080cf8f50c053afb95c80",
                 "auto_analyze": True
@@ -72,7 +78,7 @@ class ReanalyzeRequest(BaseModel):
     no_altcoins: bool = Field(False, description="是否过滤掉山寨币，只显示美股、BTC、龙头币、国内A股")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "start_date": "2025-10-29",
                 "end_date": "2025-10-29",
@@ -143,7 +149,7 @@ async def import_data(request: ImportRequest):
         )
 
 
-@app.post("/api/v1/reanalyze")
+@app.post("/api/v1/reanalyze", dependencies=[Depends(check_ip_restriction)])
 async def reanalyze(request: ReanalyzeRequest):
     """
     重新分析历史数据

@@ -178,6 +178,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   #btBar .err { color: #e06666; }
   #btBar .note { flex-basis: 100%; color: #6a7180; font-size: 11px; line-height: 1.5; }
   #btBar .note b { color: #8b91a0; font-weight: 600; }
+  #btBar details.note > summary { cursor: pointer; color: #8b91a0; font-size: 11px;
+           list-style-position: inside; user-select: none; }
+  #btBar details.note > summary:hover { color: #cdd7ee; }
+  #btBar details.note[open] > summary { margin-bottom: 3px; }
   #btBar .x { margin-left: auto; cursor: pointer; color: #8b91a0; }
   .legend { font-size: 12px; color: #8b91a0; display: flex; gap: 14px; flex-wrap: wrap; min-width: 0; }
   .legend b { color: #b9bec9; font-weight: 600; }
@@ -210,7 +214,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .legend { gap: 6px 10px; font-size: 11px; line-height: 1.5; }
     .legend > span { min-width: 0; }
     .sw { width: 16px; height: 8px; margin-right: 3px; }
-    #btBar { padding: 6px 12px; gap: 10px; }
+    /* 结果条封顶:即使展开说明或交易笔数很多,图表也至少留得住高度 */
+    #btBar { padding: 6px 12px; gap: 6px 10px; max-height: 34vh; overflow-y: auto; }
   }
 </style>
 </head>
@@ -317,14 +322,20 @@ function buildOption(coin) {
   // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致且留足空间放轴名（均为 6%）
   // 窄屏收紧左右内边距:390px 下 62+58 会吃掉 31% 宽度,只剩 270px 画图
   const gL = NARROW() ? 50 : 62, gR = NARROW() ? 30 : 58;
-  const grids = kl ? [
-      { left: gL, right: gR, top: 28, height: '42.5%' },
-      { left: gL, right: gR, top: '52%',  height: '17%' },
-      { left: gL, right: gR, top: '75%',  height: '17%' }
-    ] : [
-      { left: gL, right: gR, top: 28,  height: '46%' },
-      { left: gL, right: gR, top: '55.5%', height: '36.5%' }
-    ];
+  // 纵向分布也要随断点走:面板间距是百分比,图表总高一矮(手机开了回测只剩 ~500px)
+  // 间距就不够同时放「上一面板的最低刻度」和「下一面板的轴名」,两者会叠在一起。
+  // 窄屏把下方面板的起点整体下推,换来各面板之间 30-45px 的净间距。
+  // 顶部留白不能低于 26:轴名用 ECharts 默认 nameGap:15,在 grid 顶上方 15px 处,
+  // top 太小(试过 20)「K线」「资金」两个标题会被容器上边缘切掉。
+  const gT = 26;
+  const box = (top, height) => ({ left: gL, right: gR, top, height });
+  const grids = kl
+    ? (NARROW()
+        ? [box(gT, '40%'), box('54%', '16%'), box('76%', '16%')]
+        : [box(28, '42.5%'), box('52%', '17%'), box('75%', '17%')])
+    : (NARROW()
+        ? [box(gT, '43%'), box('57%', '35%')]
+        : [box(28, '46%'), box('55.5%', '36.5%')]);
   const nGrid = grids.length;
   const offGrid = kl ? 1 : 0, brkGrid = kl ? 2 : 1;
 
@@ -471,7 +482,14 @@ function clearBacktest(redraw) {
   chart.resize();
   if (redraw) chart.setOption(buildOption(sel.value), true);
 }
-function showBtBar(html) { btBar.innerHTML = html; btBar.hidden = false; chart.resize(); }
+function showBtBar(html) {
+  btBar.innerHTML = html; btBar.hidden = false;
+  // 计算说明在窄屏默认折叠:它固定占 116px,是手机上图表被压扁的主因;
+  // 宽屏保持展开,不改变桌面原有行为
+  const nt = btBar.querySelector('details.note');
+  if (nt) nt.open = !NARROW();
+  chart.resize();
+}
 function fmtMoney(v) { return v.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
 
 async function runBacktest() {
@@ -499,10 +517,11 @@ async function runBacktest() {
       '<span>交易 <b>' + body.trades.length + '</b> 笔</span>' +
       '<span class="x" id="btClose" title="清除回测">✕</span>' +
       (body.trades.length ? '<span class="trades">' + trades + '</span>' : '<span class="trades">期间无交易</span>') +
-      '<span class="note"><b>节点</b>：每次回测前先对该标的在所选区间重新分析节点（只重算这一个标的），回测结果始终基于当前数据与分析逻辑。' +
+      '<details class="note"><summary>计算说明</summary>' +
+      '<b>节点</b>：每次回测前先对该标的在所选区间重新分析节点（只重算这一个标的），回测结果始终基于当前数据与分析逻辑。' +
       '　<b>价格</b>：成交价取当日 K 线中间价 (开+收)/2，只在有 K 线的日期成交，无 K 线的节点跳过；资金曲线按每日中间价估值。' +
       '　<b>仓位</b>：买 20%/30%/40% 以下单当时的账户总市值（现金 + 持仓市值）为基数，不按初始资金、不累计；' +
-      '超出剩余现金时只买剩余现金，现金用完后的买入信号跳过，因此多次分批名义比例可超 100%，实际投入不会超过账户资金。</span>');
+      '超出剩余现金时只买剩余现金，现金用完后的买入信号跳过，因此多次分批名义比例可超 100%，实际投入不会超过账户资金。</details>');
     document.getElementById('btClose').addEventListener('click', () => clearBacktest(true));
     chart.setOption(buildOption(coin), true);
     delete DATA.series[coin].nodes; loadNodes(coin);  // 回测前重算了节点，刷新节点缓存

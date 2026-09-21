@@ -162,7 +162,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
            border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer; }
   button:hover { background: #354063; }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  #btCtl { display: flex; align-items: center; gap: 6px; padding-left: 10px; border-left: 1px solid #262a35; }
+  #btCtl { display: flex; align-items: center; gap: 6px; padding-left: 10px; border-left: 1px solid #262a35;
+           flex-wrap: wrap; min-width: 0; }
   #btCtl[hidden] { display: none; }
   #btCtl select { min-width: 0; }
   #btBar { display: flex; align-items: center; gap: 16px; padding: 6px 18px; font-size: 13px;
@@ -178,13 +179,39 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   #btBar .note { flex-basis: 100%; color: #6a7180; font-size: 11px; line-height: 1.5; }
   #btBar .note b { color: #8b91a0; font-weight: 600; }
   #btBar .x { margin-left: auto; cursor: pointer; color: #8b91a0; }
-  .legend { font-size: 12px; color: #8b91a0; display: flex; gap: 14px; flex-wrap: wrap; }
+  .legend { font-size: 12px; color: #8b91a0; display: flex; gap: 14px; flex-wrap: wrap; min-width: 0; }
   .legend b { color: #b9bec9; font-weight: 600; }
   .sw { display: inline-block; width: 22px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
   body { display: flex; flex-direction: column; height: 100vh; }
   #chart { width: 100%; flex: 1; min-height: 0; }
   .tag { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #232734; color: #9aa1b1; }
   .nokl { color: #8b91a0; }
+
+  /* ── 窄屏(手机)──
+     根因是 #btCtl 作为 header 的 flex item 默认 min-width:auto,被里面最长的
+     option「中间型-a (美股/BTC/龙头)」撑到 ~520px,撑宽 header 和 body,
+     导致 header 的 flex-wrap 按被撑大的宽度算折行、整页横向溢出。
+     上面已给它 min-width:0 + flex-wrap;这里再把各控件压紧并重排。 */
+  @media (max-width: 640px) {
+    header { padding: 9px 12px; gap: 8px; }
+    header h1 { font-size: 14px; }
+    select, input[type=date], button { font-size: 13px; padding: 5px 8px; }
+    select { min-width: 0; max-width: 46vw; }
+
+    /* 回测控件独占整行,排成:[开始] ~ [结束] / [性格] [回测] */
+    #btCtl { width: 100%; padding-left: 0; border-left: none; gap: 5px; }
+    #btCtl input[type=date] { flex: 1 1 110px; width: auto; min-width: 0; }
+    /* basis 必然大于第一行剩余空间,强制 select 带着按钮一起换到第二行。
+       用固定值(如 140px)会撞上边界:两个日期占完后剩余恰好约 137px,
+       select 勉强挤进第一行,把「回测」按钮顶出屏幕。92px = 按钮 + gap + 余量。*/
+    #btCtl select { flex: 1 1 calc(100% - 92px); max-width: none; }
+    #btCtl button { flex: 0 0 auto; }
+
+    .legend { gap: 6px 10px; font-size: 11px; line-height: 1.5; }
+    .legend > span { min-width: 0; }
+    .sw { width: 16px; height: 8px; margin-right: 3px; }
+    #btBar { padding: 6px 12px; gap: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -224,6 +251,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script>
 function initChart(DATA) {
 const chart = echarts.init(document.getElementById('chart'), 'dark');
+const NARROW = () => window.innerWidth <= 640;   // 与 CSS 断点保持一致
 const BT = { coin: null, result: null };   // 当前回测结果（仅对应 BT.coin）
 const ACTION_TXT = { buy_full: '全仓', buy_30: '买30%', buy_20: '买20%', buy_40: '买40%',
   buy_all_remaining: '买剩余', sell_50: '卖50%', sell_all: '清仓' };
@@ -287,13 +315,15 @@ function buildOption(coin) {
   });
 
   // 面板布局：有K线=3栏，无K线=2栏；各面板间距一致且留足空间放轴名（均为 6%）
+  // 窄屏收紧左右内边距:390px 下 62+58 会吃掉 31% 宽度,只剩 270px 画图
+  const gL = NARROW() ? 50 : 62, gR = NARROW() ? 30 : 58;
   const grids = kl ? [
-      { left: 62, right: 58, top: 28, height: '42.5%' },
-      { left: 62, right: 58, top: '52%',  height: '17%' },
-      { left: 62, right: 58, top: '75%',  height: '17%' }
+      { left: gL, right: gR, top: 28, height: '42.5%' },
+      { left: gL, right: gR, top: '52%',  height: '17%' },
+      { left: gL, right: gR, top: '75%',  height: '17%' }
     ] : [
-      { left: 62, right: 58, top: 28,  height: '46%' },
-      { left: 62, right: 58, top: '55.5%', height: '36.5%' }
+      { left: gL, right: gR, top: 28,  height: '46%' },
+      { left: gL, right: gR, top: '55.5%', height: '36.5%' }
     ];
   const nGrid = grids.length;
   const offGrid = kl ? 1 : 0, brkGrid = kl ? 2 : 1;
@@ -501,7 +531,12 @@ function fillOptions(list) {
 }
 fillOptions(DATA.coins);
 sel.addEventListener('change', () => render(sel.value));
-window.addEventListener('resize', () => chart.resize());
+let _wasNarrow = NARROW();
+window.addEventListener('resize', () => {
+  chart.resize();
+  // 只在跨越断点时重绘(转屏/改窗宽),平时仅 resize,避免丢 dataZoom 状态
+  if (NARROW() !== _wasNarrow) { _wasNarrow = NARROW(); chart.setOption(buildOption(sel.value), true); }
+});
 
 // 分享：把当前图表合成为带标题的分享卡片 PNG 并下载
 function exportImage() {

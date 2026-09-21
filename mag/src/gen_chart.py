@@ -557,12 +557,28 @@ window.addEventListener('resize', () => {
   if (NARROW() !== _wasNarrow) { _wasNarrow = NARROW(); chart.setOption(buildOption(sel.value), true); }
 });
 
-// 分享：把当前图表合成为带标题的分享卡片 PNG 并下载
-function exportImage() {
+// 分享：把当前图表合成为带标题的分享卡片 PNG
+//
+// 不能用 <a download href="data:image/png;base64,...">:iOS Safari 不下载它,而是把超长
+// data URL 当成页面打开,弹出「显示 / 下载」的提示,点了又没反应(它自己也处理不了)。
+// 改用 Blob:
+//   - 触屏设备优先调系统分享面板(可直接存相册 / 发微信 / AirDrop),这才是「分享」该有的行为
+//   - 其余走 blob: URL 下载 —— 比 data: URL 兼容性好,也不受 URL 长度限制
+//   - <a> 必须先 appendChild 进 DOM 再 click,Safari 和部分移动浏览器对游离节点会静默失败
+async function exportImage() {
   const coin = sel.value, s = DATA.series[coin];
-  const chartUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0f1117' });
-  const img = new Image();
-  img.onload = () => {
+  const btn = document.getElementById('shareBtn');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ 生成中';
+  try {
+    const chartUrl = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0f1117' });
+    const img = new Image();
+    await new Promise((ok, no) => {
+      img.onload = ok;
+      img.onerror = () => no(new Error('图表渲染失败'));
+      img.src = chartUrl;
+    });
+
     const headerH = 128;  // 2x 像素空间
     const cv = document.createElement('canvas');
     cv.width = img.width; cv.height = img.height + headerH;
@@ -580,12 +596,36 @@ function exportImage() {
       ' 收益 ' + (bt.profit_rate >= 0 ? '+' : '') + bt.profit_rate.toFixed(1) + '% 回撤 ' + bt.max_drawdown.toFixed(1) + '%') : '';
     ctx.fillText('Mag 场外体系 · ' + firstDate + ' ~ ' + lastDate + btTxt, 40, 100);
     ctx.drawImage(img, 0, headerH);
+
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/png'));
+    if (!blob) throw new Error('图片导出失败');
+    const name = 'Mag_' + coin + '_' + lastDate + '.png';
+
+    // 触屏设备:系统分享面板。桌面不走这条,保持原来「点一下直接下载」的习惯
+    if (matchMedia('(pointer: coarse)').matches && navigator.canShare) {
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: name });
+          return;
+        } catch (e) {
+          if (e.name === 'AbortError') return;   // 用户主动取消,不要再弹一次下载
+        }
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.download = 'Mag_' + coin + '_' + lastDate + '.png';
-    a.href = cv.toDataURL('image/png');
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
     a.click();
-  };
-  img.src = chartUrl;
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    alert('分享失败：' + (e && e.message ? e.message : e));
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
 }
 document.getElementById('shareBtn').addEventListener('click', exportImage);
 

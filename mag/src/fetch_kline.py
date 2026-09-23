@@ -19,7 +19,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from src.kline_sources import get_source
@@ -28,9 +28,11 @@ DB_PATH = Path(__file__).parent.parent / 'mag_data.db'
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36')
 
-# 后台刷新的每日节流（内存标记 + 锁，保证一天只触发一次、且不并发重复抓取）
+# 后台刷新的节流（内存标记 + 锁，避免并发重复抓取）
+# 用时间戳而非"当天已尝试"：抓不到新数据时必须还能重试，否则会卡住一整天（见 refresh_if_stale）
 _refresh_lock = threading.Lock()
-_refresh_marker = {'date': None}
+_refresh_marker = {'ts': 0.0}
+_REFRESH_MIN_INTERVAL = 1800  # 两次后台抓取的最小间隔（秒）
 
 
 def _http_get(url: str, timeout: int = 12) -> bytes:
@@ -160,23 +162,48 @@ def _latest_kline_date() -> str:
 
 
 def refresh_if_stale() -> bool:
-    """页面加载时调用：若 K 线不是最新，则当天触发一次后台增量抓取（不阻塞请求）。
+    """页面加载时调用：若 K 线落后，则触发一次后台增量抓取（不阻塞请求）。
 
-    - 一天最多触发一次（内存标记），即使有并发访问或抓取失败也不会重复拉取同一天。
-    - 已是最新（最新 K 线日期 >= 今天）则直接跳过。
+    节流用「时间戳 + 是否已追上」，而不是「当天是否已尝试」。原先按本地日期一天只试
+    一次，在 UTC+8 会稳定丢一根 K 线：
+
+      Binance 日 K 按 UTC 日切分，今天这根要到 UTC 00:00（本地 08:00）才收盘。
+      本地 00:00–08:00 触发时 UTC 还停在昨天，昨天那根尚未收盘会被 fetch_binance
+      丢弃 —— 抓不到任何新数据，却已把当天标记成"已尝试"，于是当天不再重试，
+      那根 K 线要等到第二天才补上，天天差一根。
+
+    因此：目标对齐到 UTC 昨天（今天那根还没走完，本就抓不到），没追上就允许按
+    _REFRESH_MIN_INTERVAL 重试。
+
     返回是否启动了后台刷新。
     """
-    today = datetime.now().strftime('%Y-%m-%d')
+    # 今天这根 UTC 日 K 还没收盘，能拿到的最新一根是 UTC 昨天
+    target = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
     with _refresh_lock:
-        if _refresh_marker['date'] == today:
-            return False
         maxk = _latest_kline_date()
-        if maxk and maxk >= today:
-            _refresh_marker['date'] = today
-            return False
-        _refresh_marker['date'] = today  # 标记已尝试，避免失败时反复触发
-    threading.Thread(target=lambda: fetch_all(verbose=False), daemon=True).start()
+        if maxk and maxk >= target:
+            return False                      # 已追上，无需抓取
+        now = time.time()
+        if now - _refresh_marker['ts'] < _REFRESH_MIN_INTERVAL:
+            return False                      # 刚抓过，节流
+        _refresh_marker['ts'] = now
+    threading.Thread(target=_refresh_worker, daemon=True).start()
     return True
+
+
+def _refresh_worker():
+    """后台抓取。失败必须留痕：原先 verbose=False 跑在 daemon 线程里，
+    任何异常或跳过都无声无息，K 线停更时无从排查。"""
+    try:
+        summary = fetch_all(verbose=False)
+        skipped = (summary or {}).get('skipped') or []
+        if skipped:
+            print(f"[fetch_kline] 后台抓取完成，{len(skipped)} 个标的跳过: "
+                  f"{', '.join(skipped[:10])}{' ...' if len(skipped) > 10 else ''}",
+                  file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"[fetch_kline] 后台抓取失败: {type(e).__name__}: {e}",
+              file=sys.stderr, flush=True)
 
 
 def main():

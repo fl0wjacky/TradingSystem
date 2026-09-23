@@ -33,6 +33,8 @@ STOCK_FUTURES = {
     'GOOG': 'GOOGLUSDT', 'HOOD': 'HOODUSDT', 'MSFT': 'MSFTUSDT', 'MU': 'MUUSDT',
     'NVDA': 'NVDAUSDT', 'PLTR': 'PLTRUSDT', 'SNDK': 'SNDKUSDT', 'TSLA': 'TSLAUSDT',
     'NASDAQ': 'QQQUSDT',
+    # 未上市,币安上的是 pre-IPO 永续合约;在 mag 里已归美股/大宗
+    'OPENAI': 'OPENAIUSDT', 'ANTHROPIC': 'ANTHROPICUSDT',
     # 亚股
     '台积电': 'TSMUSDT', '海力士': 'SKHYNIXUSDT', '三星电子': 'SAMSUNGUSDT',
     # 商品

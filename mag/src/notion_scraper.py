@@ -34,6 +34,9 @@ class NotionScraper:
             '创业板',    # 创业板指数
             '地产',      # 国内地产（大周期月更）
         ]
+        # 命中上面关键词但其实不是国内 A 股的例外：
+        # 「美国地产」含「地产」会被误判，而国内判断又优先于美股判断，一旦误判就再也走不到美股分支
+        self.cn_stock_exclude = ['美国']
         # 忽略名单：笔记里的说明句/已弃用聚合名，曾被误当成标的录入，导入时直接跳过
         self.ignore_names = {'外部性在所有币种中表现最好', '美股 OTC', '美股OTC', '国内股OTC'}
 
@@ -131,6 +134,13 @@ class NotionScraper:
         while i < len(lines):
             line = lines[i].strip()
             i += 1
+
+            # 跳过"压缩行"：抓取结果里偶尔会把整篇内容另外压成一整行（摘要/SEO 块），
+            # 几十个标的首尾相连挤在一起。正常标的行只含一次「场外指数」，压缩行含几十次。
+            # 不跳过的话，开头那段公告文字会和紧跟的标的名粘成一个超长假标的，
+            # 例如「新上线美国地产对美国土地和房产感兴趣的圈友可参考同样一月一更Spcx」。
+            if line.count('场外指数') > 1:
+                continue
 
             # 检测区域标志（复合标记同时开启多个区域）
             if '大宗$美股区' in line or '大宗美股区' in line or '美股区' in line:
@@ -534,11 +544,19 @@ class NotionScraper:
         coin_name_for_check = re.sub(r'（[^）)]+[）)]', '', original_coin_name).strip()
         coin_name_upper = re.sub(r'（[^）)]+[）)]', '', coin_name_upper).strip()
 
+        # 归一化：「地产」板块下作者用「中国大陆」/「美国地产」区分两地，
+        # 「中国大陆」脱离板块上下文看不出是地产，统一改名为「国内地产」；
+        # 它也接续原先那个月更的「地产」标的（同一条线，合并）。
+        if coin_name_for_check in ('中国大陆', '地产'):
+            coin_name_for_check = '国内地产'
+            coin_name_upper = '国内地产'
+
         # 特殊处理：优先判断国内A股（避免被误标记为美股）
         # 使用关键词列表判断，支持多种命名模式
         # 注意：判断时使用去除括号后的名称，避免描述信息干扰
         is_cn_stock = 0
-        if any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords):
+        if (any(keyword in coin_name_for_check for keyword in self.cn_stock_keywords)
+                and not any(x in coin_name_for_check for x in self.cn_stock_exclude)):
             is_cn_stock = 1
             coin_name_upper = coin_name_for_check  # 保留中文全称（已去除括号描述）
             # 作者偶尔会在"国内机器人/国内人工智能"后加 etf 后缀，归一为无后缀版避免标的分裂

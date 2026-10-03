@@ -24,7 +24,8 @@ from src.advisor import MagAdvisor
 console = Console()
 
 
-def import_and_analyze_json(notion_url: str, auto_analyze: bool = True):
+def import_and_analyze_json(notion_url: str, auto_analyze: bool = True,
+                            overwrite: bool = False):
     """
     导入并分析数据（JSON模式）
 
@@ -65,13 +66,15 @@ def import_and_analyze_json(notion_url: str, auto_analyze: bool = True):
         import_dates = sorted({cd['date'] for cd in coin_data_list})
         today = datetime.now().strftime('%Y-%m-%d')
 
-        # 情况一：该日期数据已存在 → 拒绝
+        # 情况一：该日期数据已存在 → 默认拒绝；overwrite=True 时改为覆盖
+        # （作者会分批更新笔记，早导入会漏掉后补的内容，此时需要能重导一次）
         existing = [d for d in import_dates if db.date_exists(d)]
-        if existing:
+        if existing and not overwrite:
             return {
                 "success": False,
                 "error": "Date already exists",
                 "detail": f"拒绝录入：数据库中已存在 {', '.join(existing)} 的数据，请勿重复导入"
+                          f"（确需重导请用 overwrite）"
             }
 
         # 情况二：日期为未来时间 → 拒绝
@@ -84,6 +87,10 @@ def import_and_analyze_json(notion_url: str, auto_analyze: bool = True):
             }
 
         # 2. 存储数据
+        if overwrite and existing:
+            # 先清当天再插：upsert 覆盖不到"旧数据有、新数据没有"的标的
+            db.delete_analysis_results(import_dates[0], import_dates[-1])
+            db.delete_coin_daily_data(import_dates)
         for coin_data in coin_data_list:
             db.insert_or_update_coin_data(coin_data)
 

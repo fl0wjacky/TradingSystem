@@ -450,6 +450,24 @@ class MagDatabase:
             conn.commit()
             return deleted_analysis + deleted_special
 
+    def delete_coin_daily_data(self, dates: List[str]) -> int:
+        """删除指定日期的场外数据，返回删除行数（覆盖重导用）。
+
+        覆盖导入必须先清当天再插入：insert_or_update_coin_data 是 upsert，
+        覆盖不到"旧数据有、新数据没有"的标的 —— 例如改名前的旧标的名、
+        或曾被误解析出的假标的，不清就会残留在当天。
+        """
+        if not dates:
+            return 0
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM coin_daily_data WHERE date IN (%s)" % ",".join("?" * len(dates)),
+                list(dates))
+            deleted = cursor.rowcount
+            conn.commit()
+            return deleted
+
     def date_exists(self, date: str) -> bool:
         """判断数据库中是否已存在某一天的币种数据"""
         with sqlite3.connect(self.db_path) as conn:

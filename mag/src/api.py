@@ -67,6 +67,7 @@ class ImportRequest(BaseModel):
     """导入并分析请求"""
     notion_url: str = Field(..., description="Notion数据链接", example="https://serious-club-96d.notion.site/...")
     auto_analyze: bool = Field(True, description="是否自动分析（目前总是进行分析）")
+    overwrite: bool = Field(False, description="覆盖重导：该日期已有数据时先清空再录入。用于作者分批更新笔记、早导漏了内容的情况")
 
     class Config:
         json_schema_extra = {
@@ -129,7 +130,8 @@ async def import_data(request: ImportRequest):
     try:
         result = import_and_analyze_json(
             notion_url=request.notion_url,
-            auto_analyze=request.auto_analyze
+            auto_analyze=request.auto_analyze,
+            overwrite=request.overwrite
         )
 
         if not result.get("success"):
